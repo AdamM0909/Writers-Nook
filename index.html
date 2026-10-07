@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Writer's Nook</title>
+<meta name="description" content="A quiet private library for your books and writing.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236b3fa0'/%3E%3Cpath d='M9 8h8a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5z' fill='none' stroke='%23c9a24b' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Reusable vine flourish -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="vine" viewBox="0 0 400 40">
+      <path d="M0 20 C40 4 70 36 110 20 S170 4 200 20 S260 36 290 20 S360 4 400 20" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round"/>
+      <g fill="#6b3fa0">
+        <path d="M60 24 q-2 -14 12 -14 q2 14 -12 14z"/>
+        <path d="M150 15 q2 14 -12 14 q-2 -14 12 -14z"/>
+        <path d="M250 24 q-2 -14 12 -14 q2 14 -12 14z"/>
+        <path d="M340 15 q2 14 -12 14 q-2 -14 12 -14z"/>
+      </g>
+      <g fill="#c9a24b">
+        <circle cx="200" cy="20" r="3.2"/><circle cx="110" cy="20" r="2.2"/><circle cx="290" cy="20" r="2.2"/>
+      </g>
+    </symbol>
+    <symbol id="corner" viewBox="0 0 120 120">
+      <path d="M4 116 C4 50 50 4 116 4" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M4 84 C4 44 36 12 76 12" fill="none" stroke="#c9a24b" stroke-width="1" opacity=".6"/>
+      <g fill="#6b3fa0">
+        <path d="M14 78 q-12 -4 -10 -18 q14 2 10 18z"/>
+        <path d="M30 40 q-10 -8 -4 -20 q14 6 4 20z"/>
+        <path d="M82 14 q-4 -12 8 -14 q6 12 -8 14z" transform="translate(0 4)"/>
+      </g>
+      <circle cx="30" cy="40" r="2.4" fill="#c9a24b"/><circle cx="62" cy="20" r="2.4" fill="#c9a24b"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <a href="#" class="brand" id="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 7h9a5 5 0 0 1 5 5v14H12a5 5 0 0 1-5-5z" fill="none" stroke="#c9a24b" stroke-width="2"/><path d="M25 7c-3 2-3 6 0 8" fill="none" stroke="#6b3fa0" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>Writer's Nook</span>
+  </a>
+  <div class="actions">
+    <button class="btn ghost" id="btn-write">Write</button>
+    <label class="btn primary" for="file-input">Upload</label>
+    <input type="file" id="file-input" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" multiple hidden>
+  </div>
+</header>
+<svg class="vine-rule"><use href="#vine"/></svg>
+
+<!-- LIBRARY -->
+<main id="view-library" class="view">
+  <div class="intro">
+    <h1>Your Library</h1>
+    <p>Upload a PDF or text file, or write something new. Everything stays private in this browser.</p>
+  </div>
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search your library…" aria-label="Search">
+  </div>
+  <div id="shelf" class="shelf"></div>
+  <div id="empty" class="empty" hidden>
+    <svg viewBox="0 0 400 40"><use href="#vine"/></svg>
+    <h2>Your shelf is empty</h2>
+    <p>Drop a PDF anywhere on this page, or press <b>Upload</b> to begin.</p>
+  </div>
+</main>
+
+<!-- READER -->
+<section id="view-reader" class="view reader" hidden>
+  <div class="reader-bar">
+    <button class="btn ghost" id="r-back">← Library</button>
+    <div class="r-title"><span id="r-title"></span><small id="r-author"></small></div>
+    <div class="r-tools">
+      <button class="btn ghost" id="r-edit" hidden>Edit</button>
+      <button class="btn ghost" id="r-download">Download</button>
+    </div>
+  </div>
+  <div class="stage" id="stage">
+    <button class="nav prev" id="r-prev" aria-label="Previous pages">‹</button>
+    <div class="book" id="book">
+      <svg class="corner tl"><use href="#corner"/></svg>
+      <svg class="corner tr"><use href="#corner"/></svg>
+      <svg class="corner bl"><use href="#corner"/></svg>
+      <svg class="corner br"><use href="#corner"/></svg>
+      <div class="spread" id="spread-pdf">
+        <div class="page left"><canvas id="cv-left"></canvas></div>
+        <div class="page right"><canvas id="cv-right"></canvas></div>
+      </div>
+      <div class="spread text-spread" id="spread-text" hidden>
+        <div class="text-flow" id="text-flow"></div>
+      </div>
+      <div class="spine"></div>
+    </div>
+    <button class="nav next" id="r-next" aria-label="Next pages">›</button>
+  </div>
+  <div class="reader-foot">
+    <span id="r-pos"></span>
+    <input type="range" id="r-slider" min="0" value="0" aria-label="Go to page">
+  </div>
+  <div id="r-loading" class="loading" hidden>Opening book…</div>
+</section>
+
+<!-- EDITOR -->
+<section id="view-editor" class="view editor" hidden>
+  <div class="editor-card">
+    <svg class="corner tl"><use href="#corner"/></svg>
+    <svg class="corner br"><use href="#corner"/></svg>
+    <h1 id="e-heading">New Writing</h1>
+    <input id="e-title" placeholder="Title" maxlength="140">
+    <input id="e-author" placeholder="Author (optional)" maxlength="100">
+    <textarea id="e-body" placeholder="Begin your story…"></textarea>
+    <div class="editor-actions">
+      <button class="btn ghost" id="e-cancel">Cancel</button>
+      <button class="btn primary" id="e-save">Save to Library</button>
+    </div>
+  </div>
+</section>
+
+<div id="drop" class="drop" hidden><div>Drop to add to your library</div></div>
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
