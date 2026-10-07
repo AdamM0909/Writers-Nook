@@ -8,9 +8,10 @@
     "start": "node server.js",
     "test": "node --test"
   },
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
     "cookie-session": "^2.1.0",
     "express": "^4.21.0"
   }

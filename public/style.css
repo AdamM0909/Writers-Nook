@@ -37,8 +37,6 @@ button.danger { background:#b3372f; }
 .filters input { flex:1; min-width:0; }
 .filters select { max-width:45%; }
 .stats { margin:10px 0 0; }
-.like { background:none; color:var(--accent); border:1px solid var(--line); padding:5px 14px; }
-.like.on { background:var(--accent); color:#fff; }
 .more { margin:0 auto; display:block; }
 textarea.short { min-height:80px; }
 fieldset { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }

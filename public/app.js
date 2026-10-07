@@ -1,7 +1,7 @@
 (() => {
   const $app = document.getElementById('app');
   const $nav = document.getElementById('nav');
-  let me = null;
+  let admin = false;
   let config = { genres: [], maxGenres: 3, adminEnabled: false };
 
   // All user content goes through textContent, never innerHTML.
@@ -26,6 +26,10 @@
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
     return data;
   }
+  // Remember the visitor's name on this device (best effort; storage can be blocked).
+  const savedName = () => { try { return localStorage.getItem('nook-name') || ''; } catch { return ''; } };
+  const saveName = (n) => { try { localStorage.setItem('nook-name', n); } catch { /* ignore */ } };
+
   function go(path) { history.pushState(null, '', path); render(); }
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
@@ -34,30 +38,17 @@
   window.addEventListener('popstate', render);
   const link = (href, text, cls) => h('a', { href, 'data-link': true, class: cls }, text);
   const when = (s) => new Date(s.replace(' ', 'T') + 'Z').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  const authorLink = (name) => link('/u/' + encodeURIComponent(name), name);
+  const authorLink = (name) => link('/?author=' + encodeURIComponent(name), name);
   const genreTags = (genres) => genres.map((g) => link('/?genre=' + encodeURIComponent(g), g, 'tag'));
   const readTime = (words) => `${Math.max(1, Math.round(words / 200))} min read`;
 
   function renderNav() {
-    $nav.replaceChildren(...(me ? [
+    $nav.replaceChildren(
       link('/new', '+ Write'),
-      link('/u/' + encodeURIComponent(me.username), me.username),
-      me.admin ? h('span', { class: 'badge' }, 'ADMIN') : null,
-      link('/settings', 'Settings'),
-      h('button', { class: 'link', onclick: async () => { await api('POST', '/api/logout', {}); me = null; go('/'); } }, 'Log out'),
-    ] : [link('/login', 'Log in'), link('/register', 'Join')]));
-  }
-
-  function likeButton(p) {
-    const btn = h('button', { class: 'like' + (p.liked ? ' on' : ''), title: me ? 'Like' : 'Log in to like' });
-    const paint = () => { btn.textContent = `${p.liked ? '♥' : '♡'} ${p.likes}`; btn.classList.toggle('on', p.liked); };
-    btn.addEventListener('click', async () => {
-      if (!me) return go('/login');
-      const r = await api('PUT', `/api/posts/${p.id}/like`, { liked: !p.liked });
-      p.liked = r.liked; p.likes = r.likes; paint();
-    });
-    paint();
-    return btn;
+      admin
+        ? [h('span', { class: 'meta' }, 'Admin'),
+          h('button', { class: 'link', onclick: async () => { await api('POST', '/api/admin/logout', {}); admin = false; go('/'); } }, 'Log out')]
+        : link('/admin', 'Admin'));
   }
 
   function postCard(p) {
@@ -66,7 +57,7 @@
       h('h2', {}, link('/post/' + p.id, p.title)),
       h('div', { class: 'meta' }, 'by ', authorLink(p.author), ` · ${when(p.createdAt)} · ${readTime(p.words)}`, genreTags(p.genres)),
       h('div', { class: 'excerpt' }, excerpt),
-      h('div', { class: 'meta stats' }, `♥ ${p.likes}  ·  💬 ${p.comments}`));
+      h('div', { class: 'meta stats' }, `💬 ${p.comments}`));
   }
 
   async function home(params) {
@@ -84,12 +75,17 @@
       const { posts, hasMore } = await api('GET', '/api/posts?' + qs);
       offset += posts.length;
       list.append(...posts.map(postCard));
-      if (!offset) list.append(h('p', { class: 'empty' }, search || genre ? 'Nothing matches that.' : 'Nothing here yet. Be the first to write something!'));
+      if (!offset) list.append(h('p', { class: 'empty' }, search || genre || author ? 'Nothing matches that.' : 'Nothing here yet. Be the first to write something!'));
       more.hidden = !hasMore;
     };
     more.addEventListener('click', load);
 
-    const apply = () => { const p = new URLSearchParams(); if (select.value) p.set('genre', select.value); if (box.value.trim()) p.set('q', box.value.trim()); go('/?' + p); };
+    const apply = () => {
+      const p = new URLSearchParams();
+      if (select.value) p.set('genre', select.value);
+      if (box.value.trim()) p.set('q', box.value.trim());
+      go('/?' + p);
+    };
     const select = h('select', { onchange: apply },
       h('option', { value: '' }, 'All genres'), h('option', { value: 'none', selected: genre === 'none' }, 'Untagged'),
       config.genres.map((g) => h('option', { value: g, selected: g === genre }, g)));
@@ -104,32 +100,34 @@
   async function commentsSection(postId) {
     const box = h('div');
     const err = h('div', { class: 'error' });
+    const name = h('input', { maxlength: 40, required: true, placeholder: 'Your name', value: savedName() });
     const text = h('textarea', { maxlength: 2000, placeholder: 'Leave a kind word…', class: 'short', required: true });
     async function refresh() {
       const { comments } = await api('GET', `/api/posts/${postId}/comments`);
       box.replaceChildren(...comments.map((c) => h('div', { class: 'comment' },
         h('div', { class: 'meta' }, authorLink(c.author), ' · ' + when(c.createdAt),
-          c.canDelete ? h('button', { class: 'link', onclick: async () => { await api('DELETE', '/api/comments/' + c.id); refresh(); } }, ' delete') : null),
+          admin ? h('button', { class: 'link', onclick: async () => { await api('DELETE', '/api/comments/' + c.id); refresh(); } }, ' delete') : null),
         h('div', { class: 'body' }, c.body))));
     }
     await refresh();
     return h('section', {}, h('h3', {}, 'Comments'), box,
-      me ? h('form', { onsubmit: async (e) => {
+      h('form', { onsubmit: async (e) => {
         e.preventDefault();
-        try { await api('POST', `/api/posts/${postId}/comments`, { body: text.value }); text.value = ''; err.textContent = ''; refresh(); }
-        catch (ex) { err.textContent = ex.message; }
-      } }, text, err, h('button', { type: 'submit' }, 'Comment'))
-        : h('p', { class: 'meta' }, link('/login', 'Log in'), ' to comment.'));
+        try {
+          await api('POST', `/api/posts/${postId}/comments`, { author: name.value, body: text.value });
+          saveName(name.value.trim()); text.value = ''; err.textContent = ''; refresh();
+        } catch (ex) { err.textContent = ex.message; }
+      } }, name, text, err, h('button', { type: 'submit' }, 'Comment')));
   }
 
   async function postPage(id) {
     const { post: p } = await api('GET', '/api/posts/' + id);
-    const actions = h('div', { class: 'actions' }, likeButton(p),
-      p.canEdit ? [link('/edit/' + p.id, 'Edit'),
-        h('button', { class: 'danger', onclick: async () => {
-          if (!confirm('Delete this piece for good?')) return;
-          await api('DELETE', '/api/posts/' + p.id); go('/');
-        } }, 'Delete')] : null);
+    const actions = admin ? h('div', { class: 'actions' },
+      link('/edit/' + p.id, 'Edit'),
+      h('button', { class: 'danger', onclick: async () => {
+        if (!confirm('Delete this piece for good?')) return;
+        await api('DELETE', '/api/posts/' + p.id); go('/');
+      } }, 'Delete')) : null;
     document.title = p.title + " · Writer's Nook";
     $app.replaceChildren(h('article', { class: 'card' },
       h('h2', {}, p.title),
@@ -138,10 +136,10 @@
   }
 
   async function editor(id) {
-    if (!me) return go('/login');
-    const p = id ? (await api('GET', '/api/posts/' + id)).post : { title: '', body: '', genres: [] };
-    if (id && !p.canEdit) return go('/post/' + id);
+    if (id && !admin) return go('/admin');
+    const p = id ? (await api('GET', '/api/posts/' + id)).post : { author: savedName(), title: '', body: '', genres: [] };
     const err = h('div', { class: 'error' });
+    const author = h('input', { maxlength: 40, required: true, value: p.author, placeholder: 'Your name' });
     const title = h('input', { maxlength: 150, required: true, value: p.title });
     const body = h('textarea', { required: true, value: p.body });
     const count = h('span', { class: 'meta' });
@@ -157,91 +155,35 @@
       onsubmit: async (e) => {
         e.preventDefault();
         try {
-          const payload = { title: title.value, body: body.value, genres: boxes.filter((b) => b.checked).map((b) => b.value) };
+          const payload = { author: author.value, title: title.value, body: body.value, genres: boxes.filter((b) => b.checked).map((b) => b.value) };
           const { post } = id ? await api('PUT', '/api/posts/' + id, payload) : await api('POST', '/api/posts', payload);
+          if (!id) saveName(author.value.trim());
           go('/post/' + post.id);
         } catch (ex) { err.textContent = ex.message; }
       } },
-      h('h2', {}, id ? 'Edit your writing' : 'Share something'),
+      h('h2', {}, id ? 'Edit this piece' : 'Share something'),
+      h('label', {}, 'Your name (shown as the author)', author),
       h('label', {}, 'Title', title),
       h('fieldset', {}, h('legend', {}, 'Genres (optional, pick up to ' + config.maxGenres + ') ', count),
         h('div', { class: 'genres' }, config.genres.map((g, i) => h('label', { class: 'check' }, boxes[i], g)))),
-      h('label', {}, 'Your writing', body), err, h('button', { type: 'submit' }, id ? 'Save' : 'Publish')));
+      h('label', {}, 'Your writing', body),
+      id ? null : h('p', { class: 'meta' }, 'Once posted, only the site admin can edit or delete it, so give it a quick read first.'),
+      err, h('button', { type: 'submit' }, id ? 'Save' : 'Publish')));
   }
 
-  async function profile(name) {
-    const { user } = await api('GET', '/api/users/' + encodeURIComponent(name));
-    document.title = user.username + " · Writer's Nook";
-    const params = new URLSearchParams({ author: user.username });
-    const holder = h('div');
-    $app.replaceChildren(
-      h('div', { class: 'card' }, h('h2', {}, user.username),
-        h('div', { class: 'meta' }, `Joined ${when(user.joined)} · ${user.posts} piece${user.posts === 1 ? '' : 's'}`),
-        user.bio ? h('p', { class: 'body' }, user.bio) : null,
-        me && me.username.toLowerCase() === user.username.toLowerCase() ? link('/settings', 'Edit profile') : null,
-        me && me.admin && me.username.toLowerCase() !== user.username.toLowerCase()
-          ? h('button', { class: 'danger', onclick: async () => {
-            if (!confirm(`Delete ${user.username} and ALL their writing? This cannot be undone.`)) return;
-            await api('DELETE', '/api/admin/users/' + encodeURIComponent(user.username)); go('/');
-          } }, 'Delete this account') : null),
-      holder);
-    const { posts } = await api('GET', '/api/posts?' + params);
-    holder.replaceChildren(...(posts.length ? posts.map(postCard) : [h('p', { class: 'empty' }, 'No writing yet.')]));
-  }
-
-  async function settings() {
-    if (!me) return go('/login');
-    const { user } = await api('GET', '/api/users/' + encodeURIComponent(me.username));
-    const bioErr = h('div', { class: 'error' });
-    const bio = h('textarea', { class: 'short', maxlength: 500, value: user.bio });
-    const pwErr = h('div', { class: 'error' });
-    const cur = h('input', { type: 'password', required: true, autocomplete: 'current-password' });
-    const next = h('input', { type: 'password', required: true, autocomplete: 'new-password' });
-    const ok = (el, msg) => { el.textContent = msg; el.style.color = 'green'; };
-    const bad = (el, msg) => { el.textContent = msg; el.style.color = ''; };
-    const adminErr = h('div', { class: 'error' });
-    const code = h('input', { type: 'password', required: true, autocomplete: 'off' });
-    const adminCard = !config.adminEnabled ? null : me.admin
-      ? h('div', { class: 'card' }, h('h2', {}, 'Admin mode is on'),
-        h('p', { class: 'meta' }, 'You can edit or delete any post, comment or account.'),
-        h('button', { onclick: async () => { await api('POST', '/api/admin/lock', {}); ({ user: me } = await api('GET', '/api/me')); render(); } }, 'Turn off'))
-      : h('form', { class: 'card', onsubmit: async (e) => {
-        e.preventDefault();
-        try { await api('POST', '/api/admin/unlock', { code: code.value }); ({ user: me } = await api('GET', '/api/me')); render(); }
-        catch (ex) { adminErr.textContent = ex.message; }
-      } }, h('h2', {}, 'Admin'), h('label', {}, 'Admin code', code), adminErr, h('button', { type: 'submit' }, 'Unlock admin mode'));
-    $app.replaceChildren(
-      h('form', { class: 'card', onsubmit: async (e) => {
-        e.preventDefault();
-        try { await api('PUT', '/api/me/profile', { bio: bio.value }); ok(bioErr, 'Saved.'); } catch (ex) { bad(bioErr, ex.message); }
-      } }, h('h2', {}, 'About you'), h('label', {}, 'Bio (shown on your profile)', bio), bioErr, h('button', { type: 'submit' }, 'Save bio')),
-      h('form', { class: 'card', onsubmit: async (e) => {
-        e.preventDefault();
-        try { await api('POST', '/api/me/password', { current: cur.value, next: next.value }); cur.value = next.value = ''; ok(pwErr, 'Password changed.'); }
-        catch (ex) { bad(pwErr, ex.message); }
-      } }, h('h2', {}, 'Change password'), h('label', {}, 'Current password', cur), h('label', {}, 'New password (8+ characters)', next), pwErr, h('button', { type: 'submit' }, 'Change password')),
-      adminCard);
-  }
-
-  function authForm(mode) {
-    const reg = mode === 'register';
+  function adminPage() {
+    if (admin) return go('/');
     const err = h('div', { class: 'error' });
-    const user = h('input', { autocomplete: 'username', required: true });
-    const pass = h('input', { type: 'password', required: true, autocomplete: reg ? 'new-password' : 'current-password' });
+    const pass = h('input', { type: 'password', required: true, autocomplete: 'current-password' });
     $app.replaceChildren(h('form', {
       onsubmit: async (e) => {
         e.preventDefault();
-        try {
-          ({ user: me } = await api('POST', reg ? '/api/register' : '/api/login', { username: user.value, password: pass.value }));
-          go('/');
-        } catch (ex) { err.textContent = ex.message; }
+        try { await api('POST', '/api/admin/login', { password: pass.value }); admin = true; go('/'); }
+        catch (ex) { err.textContent = ex.message; }
       } },
-      h('h2', {}, reg ? 'Join the Nook' : 'Welcome back'),
-      h('label', {}, 'Username', user),
-      h('label', {}, reg ? 'Password (8+ characters)' : 'Password', pass),
-      err, h('button', { type: 'submit' }, reg ? 'Create account' : 'Log in'),
-      reg ? h('p', { class: 'meta' }, 'Already have an account? ', link('/login', 'Log in'))
-        : h('p', { class: 'meta' }, 'New here? ', link('/register', 'Join'))));
+      h('h2', {}, 'Admin'),
+      h('p', { class: 'meta' }, config.adminEnabled ? 'Enter the admin password to edit or delete posts and comments.' : 'Admin is not set up on this site yet.'),
+      h('label', {}, 'Admin password', pass), err, h('button', { type: 'submit' }, 'Log in')));
   }
 
   async function render() {
@@ -251,13 +193,10 @@
     renderNav();
     try {
       let m;
-      if (path === '/login') authForm('login');
-      else if (path === '/register') authForm('register');
-      else if (path === '/settings') await settings();
+      if (path === '/admin') adminPage();
       else if (path === '/new') await editor();
       else if ((m = path.match(/^\/edit\/(\d+)$/))) await editor(m[1]);
       else if ((m = path.match(/^\/post\/(\d+)$/))) await postPage(m[1]);
-      else if ((m = path.match(/^\/u\/([^/]+)$/))) await profile(decodeURIComponent(m[1]));
       else await home(params);
     } catch (e) {
       $app.replaceChildren(h('p', { class: 'empty' }, e.message));
@@ -266,7 +205,9 @@
   }
 
   (async () => {
-    [config, { user: me }] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/me')]);
+    let me;
+    [config, me] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/me')]);
+    admin = me.admin;
     render();
   })();
 })();
