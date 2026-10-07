@@ -33,3 +33,23 @@ button.danger { background:#b3372f; }
 .actions { display:flex; gap:12px; align-items:center; margin-top:12px; }
 .error { color:#b3372f; font:.9rem system-ui, sans-serif; min-height:1.2em; }
 .empty { color:var(--muted); text-align:center; padding:40px 0; }
+.filters { flex-wrap:nowrap; }
+.filters input { flex:1; min-width:0; }
+.filters select { max-width:45%; }
+.stats { margin:10px 0 0; }
+.like { background:none; color:var(--accent); border:1px solid var(--line); padding:5px 14px; }
+.like.on { background:var(--accent); color:#fff; }
+.more { margin:0 auto; display:block; }
+textarea.short { min-height:80px; }
+fieldset { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+legend { color:var(--muted); font-size:.9rem; padding:0 6px; }
+.genres { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:4px 12px; }
+label.check { flex-direction:row; align-items:center; gap:6px; color:var(--ink); font-size:.9rem; }
+label.check input { padding:0; }
+section { margin-top:28px; }
+section h3 { font-family:system-ui, sans-serif; }
+.comment { border-top:1px solid var(--line); padding:10px 0; }
+.comment .meta { margin-bottom:2px; }
+.meta button.link { font-size:.85rem; }
+.card form, form.card { gap:10px; }
+nav button.link { font-size:inherit; font-family:inherit; }

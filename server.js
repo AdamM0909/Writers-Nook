@@ -6,10 +6,6 @@ if (!secret && process.env.NODE_ENV === 'production') {
   process.exit(1);
 }
 
-const app = createApp({
-  dbPath: process.env.DB_PATH || 'nook.db',
-  secret,
-  signupCode: process.env.SIGNUP_CODE || '',
-});
+const app = createApp({ dbPath: process.env.DB_PATH || 'nook.db', secret });
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Writer's Nook running on http://localhost:${port}`));
