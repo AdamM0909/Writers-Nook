@@ -16,7 +16,19 @@ A quiet, classy reading room for your books and writing — white pages with pur
 
 ## Add books to your shelf
 
-Drop PDF / `.txt` / `.md` files into the [`books/`](books) folder and push to `main`. The workflow lists them automatically, so they show up for anyone who opens the site, on any device. To set a title or author, add `books/meta.json`:
+Put each book and its cover image in the [`books/`](books) folder, **with the same file name**, and push to `main`:
+
+```
+books/
+  My Novel.pdf      <- the book  (.pdf, .txt or .md)
+  My Novel.jpg      <- its cover (.jpg, .jpeg, .png, .webp or .gif)
+  Poems.txt
+  Poems.png
+```
+
+That's it: the deploy workflow lists the folder automatically, and anyone with your link sees the shelf and can read everything. You can add files straight from the GitHub website (**Add file → Upload files**). A book with no cover image gets one made from its first page (PDF) or a purple-and-gold cover (text).
+
+Titles come from the file names. To set a title or author, add `books/meta.json`:
 
 ```json
 { "My Novel.pdf": { "title": "My Novel", "author": "Your Name" } }

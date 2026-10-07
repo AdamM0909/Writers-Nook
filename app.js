@@ -30,7 +30,7 @@ const readMeta = () => { try { return JSON.parse(localStorage.getItem("wn-meta")
 function saveMeta(b) {
   try {
     const m = readMeta();
-    m[b.id] = { progress: b.progress || 0, cover: b.cover, pages: b.pages };
+    m[b.id] = { progress: b.progress || 0, pages: b.pages, ...(b.cover?.startsWith("data:") && { cover: b.cover }) };
     localStorage.setItem("wn-meta", JSON.stringify(m));
   } catch { /* storage full or blocked: progress just won't persist */ }
 }
@@ -45,6 +45,7 @@ async function loadHosted() {
         id, hosted: true, added: 0, kind: /\.pdf$/i.test(e.file) ? "pdf" : "text",
         url: "books/" + e.file.split("/").map(encodeURIComponent).join("/"),
         title: e.title || cleanName(e.file.split("/").pop()), author: e.author || "", ...meta[id],
+        ...(e.cover && { cover: "books/" + encodeURIComponent(e.cover) }),
       });
     }
   } catch { /* no hosted library: only local uploads */ }
