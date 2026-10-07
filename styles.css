@@ -247,7 +247,17 @@ h1, h2 { font-family: var(--serif); font-weight: 600; color: var(--accent); marg
 /* invert PDF pages for night reading */
 .book.night .page canvas, .book.night .leaf .face canvas { filter: invert(.93) hue-rotate(180deg) contrast(.95); }
 .book.night .leaf .face { background: #111; }
-@media (max-width: 700px) { .size-ctl, #r-night, .sort { display: none; } }
+@media (max-width: 700px) {
+  .toolbar { flex-wrap: wrap; gap: 10px; }
+  .toolbar #search { flex: 1 1 100%; }
+  .sort { margin-left: 0; flex: 1 1 100%; }
+  .reader-bar { flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+  .r-title { flex: 1 1 0; min-width: 0; text-align: left; font-size: 19px; }
+  .r-tools { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .reader-bar .btn { padding: 7px 14px; }
+  .reader-bar .icon-btn { padding: 7px 10px; }
+  .stage { padding-bottom: 72px; }
+}
 #r-slider { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: var(--line); outline: none; }
 #r-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--gold); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--gold); cursor: pointer; }
 #r-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--gold); border: 2px solid var(--surface); cursor: pointer; }
