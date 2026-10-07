@@ -30,7 +30,7 @@ const readMeta = () => { try { return JSON.parse(localStorage.getItem("wn-meta")
 function saveMeta(b) {
   try {
     const m = readMeta();
-    m[b.id] = { progress: b.progress || 0, pages: b.pages, ...(b.cover?.startsWith("data:") && { cover: b.cover }) };
+    m[b.id] = { progress: b.progress || 0, opened: b.opened, pages: b.pages, ...(b.cover?.startsWith("data:") && { cover: b.cover }) };
     localStorage.setItem("wn-meta", JSON.stringify(m));
   } catch { /* storage full or blocked: progress just won't persist */ }
 }
@@ -71,11 +71,30 @@ function show(view) {
   document.querySelector(".top").toggleAttribute("hidden", view === "reader");
   document.querySelector(".vine-rule").toggleAttribute("hidden", view === "reader");
 }
+/* ---------- theme & preferences ---------- */
+const pref = {
+  get: (k, d) => { try { return localStorage.getItem("wn-" + k) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem("wn-" + k, v); } catch { /* ignore */ } },
+};
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  pref.set("theme", next);
+}
+$("theme-lib").onclick = $("theme-read").onclick = toggleTheme;
+let night = pref.get("night", "0") === "1";
+let fontSize = +pref.get("fs", 19);
+
 /* ---------- library ---------- */
 async function renderLibrary() {
   show("library");
   const q = $("search").value.trim().toLowerCase();
-  const books = (await allBooks()).filter((b) => !q || (b.title + " " + b.author).toLowerCase().includes(q));
+  const everything = await allBooks();
+  const sort = $("sort").value;
+  const books = everything.filter((b) => !q || (b.title + " " + b.author).toLowerCase().includes(q));
+  if (sort === "title") books.sort((a, b) => a.title.localeCompare(b.title));
+  else if (sort === "recent") books.sort((a, b) => (b.opened || 0) - (a.opened || 0));
+  renderContinue(everything.filter((b) => b.opened && b.progress < 0.98).sort((a, b) => b.opened - a.opened)[0]);
   const shelf = $("shelf");
   shelf.replaceChildren();
   $("empty").hidden = books.length > 0 || !!q;
@@ -132,7 +151,26 @@ function coverQueue(b, coverEl) {
     } catch (err) { console.warn("cover failed", b.url, err); }
   });
 }
+function renderContinue(b) {
+  const el = $("continue");
+  el.hidden = !b;
+  if (!b) return;
+  el.replaceChildren();
+  if (b.cover) { const img = document.createElement("img"); img.alt = ""; img.src = b.cover; el.append(img); }
+  const t = document.createElement("div");
+  t.className = "ct2";
+  const sm = document.createElement("small"); sm.textContent = "Continue reading";
+  const nm = document.createElement("b"); nm.textContent = b.title;
+  const pc = document.createElement("small"); pc.textContent = Math.round((b.progress || 0) * 100) + "% read";
+  t.append(sm, nm, pc);
+  const go = document.createElement("span"); go.className = "go"; go.textContent = "Resume →";
+  el.append(t, go);
+  el.onclick = () => (location.hash = "#read=" + encodeURIComponent(b.id));
+  el.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && el.click();
+}
 $("search").addEventListener("input", renderLibrary);
+$("sort").value = pref.get("sort", "shelf");
+$("sort").addEventListener("change", () => { pref.set("sort", $("sort").value); renderLibrary(); });
 
 /* ---------- adding files ---------- */
 async function pdfCover(source) {
@@ -190,6 +228,18 @@ let current = null, pdfDoc = null, pdfTask = null, pos = 0, count = 1, single = 
 let pageW = 0, pageH = 0, flipping = null, resizeTimer;
 const book = $("book");
 const GAP = 88;
+function applyNight() {
+  book.classList.toggle("night", night);
+  $("r-night").setAttribute("aria-pressed", night);
+}
+$("r-night").onclick = () => { night = !night; pref.set("night", night ? "1" : "0"); applyNight(); };
+function changeSize(d) {
+  fontSize = Math.max(14, Math.min(30, fontSize + d));
+  pref.set("fs", fontSize);
+  if (current?.kind === "text") layout(count > 1 ? pos / (count - 1) : 0);
+}
+$("r-smaller").onclick = () => changeSize(-1);
+$("r-bigger").onclick = () => changeSize(1);
 
 function stageSize() {
   const s = $("stage"), cs = getComputedStyle(s);
@@ -210,6 +260,11 @@ async function openBook(id) {
   $("r-title").textContent = b.title;
   $("r-author").textContent = b.author;
   $("r-loading").hidden = false;
+  $("r-size").hidden = b.kind === "pdf";
+  $("r-night").hidden = b.kind !== "pdf";
+  applyNight();
+  b.opened = Date.now();
+  Promise.resolve(putBook(b)).catch(() => {});
   document.title = b.title + " · Writer's Nook";
   try {
     if (b.kind === "pdf") {
@@ -265,6 +320,7 @@ async function layout(progress) {
     book.style.height = Math.max(300, h) + "px";
     const flow = $("text-flow");
     flow.style.columnGap = gap + "px";
+    flow.style.fontSize = fontSize + "px";
     flow.replaceChildren();
     const t = document.createElement("h2");
     t.textContent = current.title;
@@ -424,12 +480,17 @@ $("r-download").onclick = () => {
   if (!current.hosted) setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select, textarea") || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "t") return toggleTheme();
   if ($("view-reader").hidden) return;
   if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); goTo(pos + 1); }
   else if (e.key === "ArrowLeft" || e.key === "PageUp") goTo(pos - 1);
   else if (e.key === "Home") goTo(0);
   else if (e.key === "End") goTo(count - 1);
   else if (e.key === "f") $("r-full").click();
+  else if (e.key === "n" && current?.kind === "pdf") $("r-night").click();
+  else if (e.key === "+" || e.key === "=") changeSize(1);
+  else if (e.key === "-") changeSize(-1);
   else if (e.key === "Escape" && !document.fullscreenElement) location.hash = "";
 });
 let touchX = null;
