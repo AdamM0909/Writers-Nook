@@ -1,13 +1,21 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
-const { createApp } = require('../app');
+const os = require('node:os');
+const fs = require('node:fs');
+const path = require('node:path');
+const { createApp: make } = require('../app');
+
+// Each app gets its own throwaway database file.
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nook-test-'));
+let n = 0;
+const createApp = (opts) => make({ dbUrl: `file:${path.join(tmp, `db${n++}.db`)}`, ...opts });
 
 let server, base;
 before(async () => {
   server = createApp({ secret: 'test', adminPassword: 'sesame', loginLimit: 1000, writeLimit: 1000 }).listen(0);
   base = `http://localhost:${server.address().port}`;
 });
-after(() => server.close());
+after(() => { server.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
 // Minimal client that keeps its own cookie jar.
 function client(root = () => base) {
@@ -144,4 +152,13 @@ test('admin login and posting are rate limited', async () => {
 test('cross-site style form posts are rejected', async () => {
   const res = await fetch(base + '/api/posts', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
   assert.strictEqual(res.status, 415);
+});
+
+test('deleting a post also removes its comments and genre tags', async () => {
+  const id = (await client()('POST', '/api/posts', { author: 'Ed', title: 't', body: 'b', genres: ['Poetry'] })).data.post.id;
+  await client()('POST', `/api/posts/${id}/comments`, { author: 'Flo', body: 'hi' });
+  const admin = await adminClient();
+  assert.strictEqual((await admin('DELETE', `/api/posts/${id}`)).status, 200);
+  assert.strictEqual((await admin('GET', `/api/posts/${id}/comments`)).status, 404);
+  assert.ok(!(await admin('GET', '/api/posts?genre=Poetry')).data.posts.some((p) => p.id === id));
 });

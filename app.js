@@ -2,17 +2,18 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const crypto = require('crypto');
 const path = require('path');
-const { DatabaseSync } = require('node:sqlite');
+const { createClient } = require('@libsql/client');
 const { GENRES, MAX_GENRES } = require('./genres');
 
 const PAGE_SIZE = 20;
 const sha = (v) => crypto.createHash('sha256').update(v).digest();
 
 // Everyone can read, post and comment (with a name). Only the admin can edit or delete.
-function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit = 10, writeLimit = 20 } = {}) {
-  const db = new DatabaseSync(dbPath);
-  db.exec(`
-    PRAGMA foreign_keys = ON;
+// `dbUrl` is a Turso URL (libsql://...) or a local file ('file:nook.db'); both run the same SQL.
+function createApp({ dbUrl, dbAuthToken, secret, adminPassword = '', loginLimit = 10, writeLimit = 20 } = {}) {
+  if (!dbUrl) throw new Error('createApp needs a dbUrl');
+  const db = createClient({ url: dbUrl, authToken: dbAuthToken });
+  const ready = db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS posts (
       id INTEGER PRIMARY KEY,
       author TEXT NOT NULL,
@@ -36,6 +37,7 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
     CREATE INDEX IF NOT EXISTS comments_post ON comments(post_id);
     CREATE INDEX IF NOT EXISTS post_genres_genre ON post_genres(genre);
   `);
+  ready.catch(() => {}); // surfaced to the first request below instead of an unhandled rejection
 
   const app = express();
   app.disable('x-powered-by');
@@ -48,6 +50,7 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
     httpOnly: true,
     sameSite: 'lax',
   }));
+  app.use((req, res, next) => { ready.then(() => next(), next); });
   app.use((req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'");
@@ -78,18 +81,17 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
       (SELECT group_concat(genre, '|') FROM post_genres WHERE post_id = p.id) AS genres,
       (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comments
     FROM posts p`;
-  const q = {
-    insertPost: db.prepare('INSERT INTO posts (author, title, body) VALUES (?, ?, ?)'),
-    updatePost: db.prepare('UPDATE posts SET author = ?, title = ?, body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
-    deletePost: db.prepare('DELETE FROM posts WHERE id = ?'),
-    postExists: db.prepare('SELECT id FROM posts WHERE id = ?'),
-    clearGenres: db.prepare('DELETE FROM post_genres WHERE post_id = ?'),
-    addGenre: db.prepare('INSERT INTO post_genres (post_id, genre) VALUES (?, ?)'),
-    comments: db.prepare('SELECT id, author, body, created_at FROM comments WHERE post_id = ? ORDER BY id'),
-    insertComment: db.prepare('INSERT INTO comments (post_id, author, body) VALUES (?, ?, ?)'),
-    commentExists: db.prepare('SELECT id FROM comments WHERE id = ?'),
-    deleteComment: db.prepare('DELETE FROM comments WHERE id = ?'),
+  const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
+  const all = async (sql, args = []) => (await db.execute({ sql, args })).rows;
+  const one = async (sql, args = []) => (await all(sql, args))[0];
+  const run = (sql, args = []) => db.execute({ sql, args });
+  const tx = async (fn) => {
+    const t = await db.transaction('write');
+    try { const r = await fn((sql, args = []) => t.execute({ sql, args })); await t.commit(); return r; }
+    catch (e) { await t.rollback(); throw e; }
+    finally { t.close(); }
   };
+  const postExists = (id) => one('SELECT id FROM posts WHERE id = ?', [id]);
 
   // Admin = knows ADMIN_PASSWORD. The session stores a hash of it, so changing the
   // password instantly logs every admin out. With no password configured, nobody is admin.
@@ -105,11 +107,10 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
     genres: p.genres ? p.genres.split('|').sort() : [],
     comments: p.comments, words: words(p.body), createdAt: p.created_at, updatedAt: p.updated_at,
   });
-  const getPost = (id) => {
-    const row = db.prepare(`${POST_SELECT} WHERE p.id = ?`).get(id);
+  const getPost = async (id) => {
+    const row = await one(`${POST_SELECT} WHERE p.id = ?`, [id]);
     return row ? shapePost(row) : null;
   };
-  const tx = (fn) => { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } };
 
   const cleanName = (v) => str(v).replace(/\s+/g, ' ').trim();
   const nameError = (n) => (!n || n.length > 40 ? 'Your name is required (max 40 characters).' : null);
@@ -126,7 +127,10 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
     if (genres.length > MAX_GENRES) return { error: `Pick at most ${MAX_GENRES} genres.` };
     return { author, title, text, genres };
   }
-  const saveGenres = (id, genres) => { q.clearGenres.run(id); genres.forEach((g) => q.addGenre.run(id, g)); };
+  const saveGenres = async (exec, id, genres) => {
+    await exec('DELETE FROM post_genres WHERE post_id = ?', [id]);
+    for (const g of genres) await exec('INSERT INTO post_genres (post_id, genre) VALUES (?, ?)', [id, g]);
+  };
 
   // ---- config & health ----
   app.get('/api/config', (req, res) => res.json({ genres: GENRES, maxGenres: MAX_GENRES, adminEnabled: !!adminTag }));
@@ -147,7 +151,7 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
   app.post('/api/admin/logout', (req, res) => { req.session = null; res.json({ admin: false }); });
 
   // ---- posts ----
-  app.get('/api/posts', (req, res) => {
+  app.get('/api/posts', wrap(async (req, res) => {
     const where = [];
     const args = [];
     const genre = str(req.query.genre);
@@ -162,72 +166,81 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
       args.push(like, like, like);
     }
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
-    const rows = db.prepare(
+    const found = await all(
       `${POST_SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-       ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`
-    ).all(...args, PAGE_SIZE + 1, offset);
-    res.json({ posts: rows.slice(0, PAGE_SIZE).map(shapePost), hasMore: rows.length > PAGE_SIZE });
-  });
+       ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`,
+      [...args, PAGE_SIZE + 1, offset],
+    );
+    res.json({ posts: found.slice(0, PAGE_SIZE).map(shapePost), hasMore: found.length > PAGE_SIZE });
+  }));
 
-  app.get('/api/posts/:id', (req, res) => {
-    const p = getPost(Number(req.params.id));
+  app.get('/api/posts/:id', wrap(async (req, res) => {
+    const p = await getPost(Number(req.params.id));
     if (!p) return res.status(404).json({ error: 'Not found.' });
     res.json({ post: p });
-  });
+  }));
 
-  app.post('/api/posts', limitWrite, (req, res) => {
+  app.post('/api/posts', limitWrite, wrap(async (req, res) => {
     const v = parsePost(req.body);
     if (v.error) return res.status(400).json({ error: v.error });
-    const id = tx(() => {
-      const newId = Number(q.insertPost.run(v.author, v.title, v.text).lastInsertRowid);
-      saveGenres(newId, v.genres);
+    const id = await tx(async (exec) => {
+      const r = await exec('INSERT INTO posts (author, title, body) VALUES (?, ?, ?)', [v.author, v.title, v.text]);
+      const newId = Number(r.lastInsertRowid);
+      await saveGenres(exec, newId, v.genres);
       return newId;
     });
-    res.status(201).json({ post: getPost(id) });
-  });
+    res.status(201).json({ post: await getPost(id) });
+  }));
 
-  app.put('/api/posts/:id', requireAdmin, (req, res) => {
+  app.put('/api/posts/:id', requireAdmin, wrap(async (req, res) => {
     const id = Number(req.params.id);
-    if (!q.postExists.get(id)) return res.status(404).json({ error: 'Not found.' });
+    if (!(await postExists(id))) return res.status(404).json({ error: 'Not found.' });
     const v = parsePost(req.body);
     if (v.error) return res.status(400).json({ error: v.error });
-    tx(() => { q.updatePost.run(v.author, v.title, v.text, id); saveGenres(id, v.genres); });
-    res.json({ post: getPost(id) });
-  });
+    await tx(async (exec) => {
+      await exec('UPDATE posts SET author = ?, title = ?, body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [v.author, v.title, v.text, id]);
+      await saveGenres(exec, id, v.genres);
+    });
+    res.json({ post: await getPost(id) });
+  }));
 
-  app.delete('/api/posts/:id', requireAdmin, (req, res) => {
+  app.delete('/api/posts/:id', requireAdmin, wrap(async (req, res) => {
     const id = Number(req.params.id);
-    if (!q.postExists.get(id)) return res.status(404).json({ error: 'Not found.' });
-    q.deletePost.run(id);
+    if (!(await postExists(id))) return res.status(404).json({ error: 'Not found.' });
+    // Explicit, so it doesn't depend on the database's foreign-key settings.
+    await tx(async (exec) => {
+      await exec('DELETE FROM comments WHERE post_id = ?', [id]);
+      await exec('DELETE FROM post_genres WHERE post_id = ?', [id]);
+      await exec('DELETE FROM posts WHERE id = ?', [id]);
+    });
     res.json({ ok: true });
-  });
+  }));
 
   // ---- comments ----
-  app.get('/api/posts/:id/comments', (req, res) => {
+  app.get('/api/posts/:id/comments', wrap(async (req, res) => {
     const id = Number(req.params.id);
-    if (!q.postExists.get(id)) return res.status(404).json({ error: 'Not found.' });
-    res.json({
-      comments: q.comments.all(id).map((c) => ({ id: c.id, author: c.author, body: c.body, createdAt: c.created_at })),
-    });
-  });
+    if (!(await postExists(id))) return res.status(404).json({ error: 'Not found.' });
+    const found = await all('SELECT id, author, body, created_at FROM comments WHERE post_id = ? ORDER BY id', [id]);
+    res.json({ comments: found.map((c) => ({ id: c.id, author: c.author, body: c.body, createdAt: c.created_at })) });
+  }));
 
-  app.post('/api/posts/:id/comments', limitWrite, (req, res) => {
+  app.post('/api/posts/:id/comments', limitWrite, wrap(async (req, res) => {
     const id = Number(req.params.id);
-    if (!q.postExists.get(id)) return res.status(404).json({ error: 'Not found.' });
+    if (!(await postExists(id))) return res.status(404).json({ error: 'Not found.' });
     const author = cleanName(req.body.author);
     const body = str(req.body.body).trim();
     if (nameError(author)) return res.status(400).json({ error: nameError(author) });
     if (!body || body.length > 2000) return res.status(400).json({ error: 'Comment is required (max 2,000 characters).' });
-    q.insertComment.run(id, author, body);
+    await run('INSERT INTO comments (post_id, author, body) VALUES (?, ?, ?)', [id, author, body]);
     res.status(201).json({ ok: true });
-  });
+  }));
 
-  app.delete('/api/comments/:id', requireAdmin, (req, res) => {
+  app.delete('/api/comments/:id', requireAdmin, wrap(async (req, res) => {
     const id = Number(req.params.id);
-    if (!q.commentExists.get(id)) return res.status(404).json({ error: 'Not found.' });
-    q.deleteComment.run(id);
+    if (!(await one('SELECT id FROM comments WHERE id = ?', [id]))) return res.status(404).json({ error: 'Not found.' });
+    await run('DELETE FROM comments WHERE id = ?', [id]);
     res.json({ ok: true });
-  });
+  }));
 
   app.use(express.static(path.join(__dirname, 'public')));
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
@@ -238,6 +251,7 @@ function createApp({ dbPath = ':memory:', secret, adminPassword = '', loginLimit
     res.status(500).json({ error: 'Something went wrong.' });
   });
 
+  app.closeDb = () => db.close();
   return app;
 }
 
