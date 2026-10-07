@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Writer's Nook</title>
 <meta name="description" content="A quiet private library for your books and writing.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236b3fa0'/%3E%3Cpath d='M9 8h8a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5z' fill='none' stroke='%23c9a24b' stroke-width='2'/%3E%3C/svg%3E">
+<script>
+try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset.theme = t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0c09'/%3E%3Cpath d='M9 8h8a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5z' fill='none' stroke='%23c9a24b' stroke-width='2'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -18,7 +21,7 @@
   <defs>
     <symbol id="vine" viewBox="0 0 400 40">
       <path d="M0 20 C40 4 70 36 110 20 S170 4 200 20 S260 36 290 20 S360 4 400 20" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round"/>
-      <g fill="#6b3fa0">
+      <g style="fill:var(--leaf)">
         <path d="M60 24 q-2 -14 12 -14 q2 14 -12 14z"/>
         <path d="M150 15 q2 14 -12 14 q-2 -14 12 -14z"/>
         <path d="M250 24 q-2 -14 12 -14 q2 14 -12 14z"/>
@@ -31,7 +34,7 @@
     <symbol id="corner" viewBox="0 0 120 120">
       <path d="M4 116 C4 50 50 4 116 4" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round"/>
       <path d="M4 84 C4 44 36 12 76 12" fill="none" stroke="#c9a24b" stroke-width="1" opacity=".6"/>
-      <g fill="#6b3fa0">
+      <g style="fill:var(--leaf)">
         <path d="M14 78 q-12 -4 -10 -18 q14 2 10 18z"/>
         <path d="M30 40 q-10 -8 -4 -20 q14 6 4 20z"/>
         <path d="M82 14 q-4 -12 8 -14 q6 12 -8 14z" transform="translate(0 4)"/>
@@ -43,17 +46,18 @@
 
 <header class="top">
   <a href="#" class="brand" id="brand">
-    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 7h9a5 5 0 0 1 5 5v14H12a5 5 0 0 1-5-5z" fill="none" stroke="#c9a24b" stroke-width="2"/><path d="M25 7c-3 2-3 6 0 8" fill="none" stroke="#6b3fa0" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 7h9a5 5 0 0 1 5 5v14H12a5 5 0 0 1-5-5z" fill="none" stroke="#c9a24b" stroke-width="2"/><path d="M25 7c-3 2-3 6 0 8" fill="none" style="stroke:var(--leaf)" stroke-width="2" stroke-linecap="round"/></svg>
     <span>Writer's Nook</span>
   </a>
   <div class="actions">
+    <button class="btn ghost icon-btn" id="theme-lib" aria-label="Toggle light and dark mode" title="Light / dark (T)"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g><path class="moon" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
     <label class="btn primary" for="file-input">Add a book</label>
     <input type="file" id="file-input" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" multiple hidden>
   </div>
 </header>
 <svg class="vine-rule" viewBox="0 0 400 40" aria-hidden="true">
   <path class="draw" pathLength="1" d="M0 20 C40 4 70 36 110 20 S170 4 200 20 S260 36 290 20 S360 4 400 20" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round"/>
-  <g class="vleaf" fill="#6b3fa0">
+  <g class="vleaf" style="fill:var(--leaf)">
     <path style="--d:.9s" d="M60 24 q-2 -14 12 -14 q2 14 -12 14z"/>
     <path style="--d:1.1s" d="M150 15 q2 14 -12 14 q-2 -14 12 -14z"/>
     <path style="--d:1.3s" d="M250 24 q-2 -14 12 -14 q2 14 -12 14z"/>
@@ -68,8 +72,14 @@
     <h1>Your Library</h1>
     <p>A quiet place to read. Books added to the shelf appear below.</p>
   </div>
+  <div id="continue" class="continue" hidden role="button" tabindex="0"></div>
   <div class="toolbar">
     <input type="search" id="search" placeholder="Search your library…" aria-label="Search">
+    <select id="sort" class="sort" aria-label="Sort">
+      <option value="shelf">Shelf order</option>
+      <option value="title">Title A–Z</option>
+      <option value="recent">Recently read</option>
+    </select>
   </div>
   <div id="shelf" class="shelf"></div>
   <div id="empty" class="empty" hidden>
@@ -85,6 +95,9 @@
     <button class="btn ghost" id="r-back">← Library</button>
     <div class="r-title"><span id="r-title"></span><small id="r-author"></small></div>
     <div class="r-tools">
+      <span class="size-ctl" id="r-size" hidden><button id="r-smaller" aria-label="Smaller text" title="Smaller text">A−</button><button id="r-bigger" aria-label="Larger text" title="Larger text">A+</button></span>
+      <button class="btn ghost toggle" id="r-night" aria-pressed="false" title="Invert page colours (N)" hidden>Night pages</button>
+      <button class="btn ghost icon-btn" id="theme-read" aria-label="Toggle light and dark mode" title="Light / dark (T)"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g><path class="moon" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
       <button class="btn ghost" id="r-full" title="Fullscreen">Fullscreen</button>
       <button class="btn ghost" id="r-download">Download</button>
     </div>

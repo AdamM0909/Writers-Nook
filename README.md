@@ -1,11 +1,13 @@
 # Writer's Nook
 
-A quiet, classy reading room for your books and writing — white pages with purple and gold vine accents.
+A quiet, classy reading room for your books and writing — white and gold by day, black and gold by night, with vine accents.
 
 - **Two-page book spreads** for PDFs (cover on its own, then facing pages) with a real page-turn animation. Phones get single pages.
 - Reads `.txt` / `.md` too, paginated into the same spread.
 - Animated vine header, staggered shelf, sheen on covers, book-opening transition (respects *reduced motion*).
 - Navigate with ← → / Space, clicking a page, swiping, or the slider. `F` toggles fullscreen. Your place in each book is remembered.
+- **Light / dark mode** (button or `T`; follows your system by default). *Night pages* (`N`) inverts PDF pages for dark reading, `A−`/`A+` (or `-`/`+`) resizes text books.
+- Shelf **sort**, and a **Continue reading** card that takes you back to where you stopped.
 - Static site: no server, no build.
 
 ## Publish it from GitHub (GitHub Pages)
@@ -26,7 +28,7 @@ books/
   Poems.png
 ```
 
-That's it: the deploy workflow lists the folder automatically, and anyone with your link sees the shelf and can read everything. You can add files straight from the GitHub website (**Add file → Upload files**). A book with no cover image gets one made from its first page (PDF) or a purple-and-gold cover (text).
+That's it: the deploy workflow lists the folder automatically, and anyone with your link sees the shelf and can read everything. You can add files straight from the GitHub website (**Add file → Upload files**). A book with no cover image gets one made from its first page (PDF) or a black-and-gold cover (text).
 
 Titles come from the file names. To set a title or author, add `books/meta.json`:
 
