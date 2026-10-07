@@ -47,18 +47,26 @@
     <span>Writer's Nook</span>
   </a>
   <div class="actions">
-    <button class="btn ghost" id="btn-write">Write</button>
-    <label class="btn primary" for="file-input">Upload</label>
+    <label class="btn primary" for="file-input">Add a book</label>
     <input type="file" id="file-input" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" multiple hidden>
   </div>
 </header>
-<svg class="vine-rule"><use href="#vine"/></svg>
+<svg class="vine-rule" viewBox="0 0 400 40" aria-hidden="true">
+  <path class="draw" pathLength="1" d="M0 20 C40 4 70 36 110 20 S170 4 200 20 S260 36 290 20 S360 4 400 20" fill="none" stroke="#c9a24b" stroke-width="1.6" stroke-linecap="round"/>
+  <g class="vleaf" fill="#6b3fa0">
+    <path style="--d:.9s" d="M60 24 q-2 -14 12 -14 q2 14 -12 14z"/>
+    <path style="--d:1.1s" d="M150 15 q2 14 -12 14 q-2 -14 12 -14z"/>
+    <path style="--d:1.3s" d="M250 24 q-2 -14 12 -14 q2 14 -12 14z"/>
+    <path style="--d:1.5s" d="M340 15 q2 14 -12 14 q-2 -14 12 -14z"/>
+  </g>
+  <g fill="#c9a24b"><circle class="pop" style="--d:.5s" cx="200" cy="20" r="3.2"/><circle class="pop" style="--d:.8s" cx="110" cy="20" r="2.2"/><circle class="pop" style="--d:1s" cx="290" cy="20" r="2.2"/></g>
+</svg>
 
 <!-- LIBRARY -->
 <main id="view-library" class="view">
   <div class="intro">
     <h1>Your Library</h1>
-    <p>Upload a PDF or text file, or write something new. Everything stays private in this browser.</p>
+    <p>A quiet place to read. Books added to the shelf appear below.</p>
   </div>
   <div class="toolbar">
     <input type="search" id="search" placeholder="Search your library…" aria-label="Search">
@@ -77,7 +85,7 @@
     <button class="btn ghost" id="r-back">← Library</button>
     <div class="r-title"><span id="r-title"></span><small id="r-author"></small></div>
     <div class="r-tools">
-      <button class="btn ghost" id="r-edit" hidden>Edit</button>
+      <button class="btn ghost" id="r-full" title="Fullscreen">Fullscreen</button>
       <button class="btn ghost" id="r-download">Download</button>
     </div>
   </div>
@@ -96,6 +104,7 @@
         <div class="text-flow" id="text-flow"></div>
       </div>
       <div class="spine"></div>
+      <div class="flip-layer" id="flip-layer"></div>
     </div>
     <button class="nav next" id="r-next" aria-label="Next pages">›</button>
   </div>
@@ -104,22 +113,6 @@
     <input type="range" id="r-slider" min="0" value="0" aria-label="Go to page">
   </div>
   <div id="r-loading" class="loading" hidden>Opening book…</div>
-</section>
-
-<!-- EDITOR -->
-<section id="view-editor" class="view editor" hidden>
-  <div class="editor-card">
-    <svg class="corner tl"><use href="#corner"/></svg>
-    <svg class="corner br"><use href="#corner"/></svg>
-    <h1 id="e-heading">New Writing</h1>
-    <input id="e-title" placeholder="Title" maxlength="140">
-    <input id="e-author" placeholder="Author (optional)" maxlength="100">
-    <textarea id="e-body" placeholder="Begin your story…"></textarea>
-    <div class="editor-actions">
-      <button class="btn ghost" id="e-cancel">Cancel</button>
-      <button class="btn primary" id="e-save">Save to Library</button>
-    </div>
-  </div>
 </section>
 
 <div id="drop" class="drop" hidden><div>Drop to add to your library</div></div>

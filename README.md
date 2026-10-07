@@ -1,25 +1,36 @@
 # Writer's Nook
 
-A quiet, classy personal library for your books and writing — white pages with purple and gold vine accents.
+A quiet, classy reading room for your books and writing — white pages with purple and gold vine accents.
 
-- **Upload PDFs** and read them as a two-page book spread (cover on its own, then facing pages).
-- **Upload `.txt` / `.md`** files, or **write directly** in the built-in editor; text is paginated into a two-page spread too.
-- Auto-generated covers, search, reading progress remembered per book, keyboard (← →), swipe and slider navigation.
-- Single-page mode automatically on phones.
-- Everything is stored privately in your browser (IndexedDB). No server, no accounts.
+- **Two-page book spreads** for PDFs (cover on its own, then facing pages) with a real page-turn animation. Phones get single pages.
+- Reads `.txt` / `.md` too, paginated into the same spread.
+- Animated vine header, staggered shelf, sheen on covers, book-opening transition (respects *reduced motion*).
+- Navigate with ← → / Space, clicking a page, swiping, or the slider. `F` toggles fullscreen. Your place in each book is remembered.
+- Static site: no server, no build.
 
-## Run it
+## Publish it from GitHub (GitHub Pages)
 
-It's a static site — no build step. Serve the folder with any static server:
+1. Merge to `main`.
+2. In the repo go to **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. The *Deploy to GitHub Pages* workflow runs on every push to `main`; your site appears at `https://<user>.github.io/Writers-Nook/`.
 
-```sh
-python3 -m http.server 8000
-# open http://localhost:8000
+## Add books to your shelf
+
+Drop PDF / `.txt` / `.md` files into the [`books/`](books) folder and push to `main`. The workflow lists them automatically, so they show up for anyone who opens the site, on any device. To set a title or author, add `books/meta.json`:
+
+```json
+{ "My Novel.pdf": { "title": "My Novel", "author": "Your Name" } }
 ```
 
-It also deploys as-is to GitHub Pages, Netlify, Cloudflare Pages, etc.
+Visitors can also use **Add a book** to open a file just for themselves; those stay only in that browser.
 
-## Notes
+> If the repo is public, so are the books in it. For private reading, keep the repo private (Pages on private repos needs a paid plan) or only use **Add a book**.
 
-- PDF rendering uses [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), vendored in `vendor/`.
-- Library data lives in the browser it was added from; use **Download** in the reader to keep copies.
+## Run locally
+
+```sh
+node scripts/build-library.mjs   # writes books/library.json
+python3 -m http.server 8000      # open http://localhost:8000
+```
+
+PDF rendering uses [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), vendored in `vendor/`.
