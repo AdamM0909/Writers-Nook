@@ -1,5 +1,8 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { createApp } = require('../app');
 
 let server, base;
@@ -141,4 +144,51 @@ test('login attempts are rate limited', async () => {
     for (let i = 0; i < 5; i++) codes.push((await c('POST', '/api/login', { username: 'x', password: 'y' })).status);
     assert.deepStrictEqual(codes, [401, 401, 401, 429, 429]);
   } finally { s.close(); }
+});
+
+test('admin code unlocks moderation; everyone else is still blocked', async () => {
+  const dbPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nook-')), 'test.db');
+  const mk = (code) => createApp({ dbPath, secret: 'shared', authLimit: 1000, adminCode: code }).listen(0);
+  const a = mk('letmein');
+  let root = `http://localhost:${a.address().port}`;
+  try {
+    const writer = client(() => root);
+    await writer('POST', '/api/register', { username: 'writer', password: 'password123' });
+    const postId = (await writer('POST', '/api/posts', { title: 'Mine', body: 'Original' })).data.post.id;
+    const cid = (await writer('POST', `/api/posts/${postId}/comments`, { body: 'hi' }), (await writer('GET', `/api/posts/${postId}/comments`)).data.comments[0].id);
+
+    const mod = client(() => root);
+    await mod('POST', '/api/register', { username: 'themod', password: 'password123' });
+    assert.strictEqual((await mod('PUT', `/api/posts/${postId}`, { title: 'x', body: 'y' })).status, 403);
+    assert.strictEqual((await mod('POST', '/api/admin/unlock', { code: 'wrong' })).status, 403);
+    assert.strictEqual((await client(() => root)('POST', '/api/admin/unlock', { code: 'letmein' })).status, 401); // must be logged in
+    assert.strictEqual((await mod('DELETE', '/api/admin/users/writer')).status, 403);
+
+    assert.strictEqual((await mod('POST', '/api/admin/unlock', { code: 'letmein' })).status, 200);
+    assert.strictEqual((await mod('GET', '/api/me')).data.user.admin, true);
+    const seen = (await mod('GET', `/api/posts/${postId}`)).data.post;
+    assert.strictEqual(seen.canEdit, true);
+    assert.strictEqual(seen.mine, false);
+    assert.strictEqual((await mod('PUT', `/api/posts/${postId}`, { title: 'Mine', body: 'Moderated' })).status, 200);
+    assert.strictEqual((await mod('DELETE', `/api/comments/${cid}`)).status, 200);
+
+    // Changing ADMIN_CODE revokes existing admin sessions (same cookie, new server).
+    a.close();
+    const b = mk('new-code');
+    root = `http://localhost:${b.address().port}`;
+    try {
+      assert.strictEqual((await mod('GET', '/api/me')).data.user.admin, false);
+      assert.strictEqual((await mod('DELETE', `/api/posts/${postId}`)).status, 403);
+      assert.strictEqual((await mod('POST', '/api/admin/unlock', { code: 'new-code' })).status, 200);
+      assert.strictEqual((await mod('DELETE', `/api/posts/${postId}`)).status, 200);
+      assert.strictEqual((await mod('DELETE', '/api/admin/users/writer')).status, 200);
+      assert.strictEqual((await client()('GET', '/api/users/writer')).status, 404);
+      assert.strictEqual((await mod('DELETE', '/api/admin/users/themod')).status, 400); // not yourself
+    } finally { b.close(); }
+  } finally { a.close(); }
+});
+
+test('without ADMIN_CODE, admin mode does not exist', async () => {
+  const c = await join('plainuser');
+  assert.strictEqual((await c('POST', '/api/admin/unlock', { code: '' })).status, 404);
 });

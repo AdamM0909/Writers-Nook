@@ -37,8 +37,15 @@ Without one, every redeploy wipes all posts and accounts. Fly.io, Railway or any
 | Variable | Purpose |
 | --- | --- |
 | `SESSION_SECRET` | Signs login cookies. Required when `NODE_ENV=production`. |
+| `ADMIN_CODE` | Optional. Your secret moderator code (see below). Leave unset to turn admin mode off. |
 | `DB_PATH` | SQLite file location (default `nook.db`; `/data/nook.db` in Docker). |
 | `PORT` | Port (default 3000). |
+
+### Being the admin
+Set `ADMIN_CODE` to a long secret only you know. Log in with your normal account, go to **Settings > Admin**, and enter
+the code. While admin mode is on (you'll see a red ADMIN badge) you can edit or delete **any post or comment** and delete
+**any account** (from that writer's profile page). Regular members still can't touch each other's writing.
+Turn it off in Settings when you're done. Change `ADMIN_CODE` and every existing admin session is switched off immediately.
 
 ### Back up
 Everything is in the one SQLite file. Copy it now and then.

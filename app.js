@@ -7,8 +7,9 @@ const { DatabaseSync } = require('node:sqlite');
 const { GENRES, MAX_GENRES } = require('./genres');
 
 const PAGE_SIZE = 20;
+const sha = (v) => crypto.createHash('sha256').update(v).digest();
 
-function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
+function createApp({ dbPath = ':memory:', secret, authLimit = 30, adminCode = '' } = {}) {
   const db = new DatabaseSync(dbPath);
   db.exec(`
     PRAGMA foreign_keys = ON;
@@ -89,8 +90,9 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
     setPassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
     postCount: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ?'),
     insertPost: db.prepare('INSERT INTO posts (user_id, title, body) VALUES (?, ?, ?)'),
-    updatePost: db.prepare('UPDATE posts SET title = ?, body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?'),
-    deletePost: db.prepare('DELETE FROM posts WHERE id = ? AND user_id = ?'),
+    updatePost: db.prepare('UPDATE posts SET title = ?, body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
+    deletePost: db.prepare('DELETE FROM posts WHERE id = ?'),
+    deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
     postOwner: db.prepare('SELECT id, user_id FROM posts WHERE id = ?'),
     clearGenres: db.prepare('DELETE FROM post_genres WHERE post_id = ?'),
     addGenre: db.prepare('INSERT INTO post_genres (post_id, genre) VALUES (?, ?)'),
@@ -114,16 +116,21 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
 
   const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
   const words = (t) => (t.trim() ? t.trim().split(/\s+/).length : 0);
-  const shapePost = (p, me) => ({
+  // Admin mode = logged in + unlocked with ADMIN_CODE. The session stores a hash of the code,
+  // so changing ADMIN_CODE instantly revokes every existing admin session.
+  const adminTag = adminCode ? sha('admin:' + adminCode).toString('hex') : null;
+  const isAdmin = (req) => !!adminTag && req.session.admin === adminTag && !!req.session.uid;
+  const shapePost = (p, me, admin) => ({
     id: p.id, title: p.title, body: p.body, author: p.author,
     genres: p.genres ? p.genres.split('|').sort() : [],
     likes: p.likes, comments: p.comments, liked: !!p.liked,
     words: words(p.body), createdAt: p.created_at, updatedAt: p.updated_at,
     mine: !!me && p.user_id === me.id,
+    canEdit: (!!me && p.user_id === me.id) || !!admin,
   });
-  const getPost = (id, me) => {
+  const getPost = (id, me, admin) => {
     const row = db.prepare(`${POST_SELECT} WHERE p.id = ?`).get(me ? me.id : 0, id);
-    return row ? shapePost(row, me) : null;
+    return row ? shapePost(row, me, admin) : null;
   };
   const currentUser = (req) => (req.session.uid ? q.userById.get(req.session.uid) || null : null);
   const requireLogin = (req, res, next) => {
@@ -148,11 +155,32 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
   const saveGenres = (id, genres) => { q.clearGenres.run(id); genres.forEach((g) => q.addGenre.run(id, g)); };
 
   // ---- config & health ----
-  app.get('/api/config', (req, res) => res.json({ genres: GENRES, maxGenres: MAX_GENRES }));
+  app.get('/api/config', (req, res) => res.json({ genres: GENRES, maxGenres: MAX_GENRES, adminEnabled: !!adminCode }));
   app.get('/healthz', (req, res) => res.type('text').send('ok'));
 
   // ---- auth ----
-  app.get('/api/me', (req, res) => res.json({ user: currentUser(req) }));
+  app.get('/api/me', (req, res) => {
+    const me = currentUser(req);
+    res.json({ user: me && { ...me, admin: isAdmin(req) } });
+  });
+
+  // ---- admin ----
+  app.post('/api/admin/unlock', requireLogin, limitAuth, (req, res) => {
+    if (!adminCode) return res.status(404).json({ error: 'Admin mode is not set up on this site.' });
+    if (!crypto.timingSafeEqual(sha(str(req.body.code)), sha(adminCode))) return res.status(403).json({ error: 'Wrong admin code.' });
+    req.session.admin = adminTag;
+    res.json({ admin: true });
+  });
+  app.post('/api/admin/lock', (req, res) => { delete req.session.admin; res.json({ admin: false }); });
+
+  app.delete('/api/admin/users/:username', requireLogin, (req, res) => {
+    if (!isAdmin(req)) return res.status(403).json({ error: 'Admins only.' });
+    const u = q.userByName.get(req.params.username);
+    if (!u) return res.status(404).json({ error: 'No such writer.' });
+    if (u.id === req.me.id) return res.status(400).json({ error: "You can't delete your own account here." });
+    q.deleteUser.run(u.id);
+    res.json({ ok: true });
+  });
 
   app.post('/api/register', limitAuth, (req, res) => {
     const username = str(req.body.username).trim();
@@ -226,11 +254,11 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
       `${POST_SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`
     ).all(...args, PAGE_SIZE + 1, offset);
-    res.json({ posts: rows.slice(0, PAGE_SIZE).map((p) => shapePost(p, me)), hasMore: rows.length > PAGE_SIZE });
+    res.json({ posts: rows.slice(0, PAGE_SIZE).map((p) => shapePost(p, me, isAdmin(req))), hasMore: rows.length > PAGE_SIZE });
   });
 
   app.get('/api/posts/:id', (req, res) => {
-    const p = getPost(Number(req.params.id), currentUser(req));
+    const p = getPost(Number(req.params.id), currentUser(req), isAdmin(req));
     if (!p) return res.status(404).json({ error: 'Not found.' });
     res.json({ post: p });
   });
@@ -243,26 +271,26 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
       saveGenres(newId, v.genres);
       return newId;
     });
-    res.status(201).json({ post: getPost(id, req.me) });
+    res.status(201).json({ post: getPost(id, req.me, isAdmin(req)) });
   });
 
   app.put('/api/posts/:id', requireLogin, (req, res) => {
     const id = Number(req.params.id);
     const existing = q.postOwner.get(id);
     if (!existing) return res.status(404).json({ error: 'Not found.' });
-    if (existing.user_id !== req.me.id) return res.status(403).json({ error: 'You can only edit your own writing.' });
+    if (existing.user_id !== req.me.id && !isAdmin(req)) return res.status(403).json({ error: 'You can only edit your own writing.' });
     const v = parsePost(req.body);
     if (v.error) return res.status(400).json({ error: v.error });
-    tx(() => { q.updatePost.run(v.title, v.text, id, req.me.id); saveGenres(id, v.genres); });
-    res.json({ post: getPost(id, req.me) });
+    tx(() => { q.updatePost.run(v.title, v.text, id); saveGenres(id, v.genres); });
+    res.json({ post: getPost(id, req.me, isAdmin(req)) });
   });
 
   app.delete('/api/posts/:id', requireLogin, (req, res) => {
     const id = Number(req.params.id);
     const existing = q.postOwner.get(id);
     if (!existing) return res.status(404).json({ error: 'Not found.' });
-    if (existing.user_id !== req.me.id) return res.status(403).json({ error: 'You can only delete your own writing.' });
-    q.deletePost.run(id, req.me.id);
+    if (existing.user_id !== req.me.id && !isAdmin(req)) return res.status(403).json({ error: 'You can only delete your own writing.' });
+    q.deletePost.run(id);
     res.json({ ok: true });
   });
 
@@ -284,7 +312,7 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
       comments: q.comments.all(post.id).map((c) => ({
         id: c.id, author: c.author, body: c.body, createdAt: c.created_at,
         // Commenters can remove their own; the post's author can remove anything on their post.
-        canDelete: !!me && (c.user_id === me.id || post.user_id === me.id),
+        canDelete: !!me && (c.user_id === me.id || post.user_id === me.id || isAdmin(req)),
       })),
     });
   });
@@ -301,7 +329,7 @@ function createApp({ dbPath = ':memory:', secret, authLimit = 30 } = {}) {
   app.delete('/api/comments/:id', requireLogin, (req, res) => {
     const c = q.getComment.get(Number(req.params.id));
     if (!c) return res.status(404).json({ error: 'Not found.' });
-    if (c.user_id !== req.me.id && c.post_owner !== req.me.id) return res.status(403).json({ error: 'Not allowed.' });
+    if (c.user_id !== req.me.id && c.post_owner !== req.me.id && !isAdmin(req)) return res.status(403).json({ error: 'Not allowed.' });
     q.deleteComment.run(c.id);
     res.json({ ok: true });
   });

@@ -2,7 +2,7 @@
   const $app = document.getElementById('app');
   const $nav = document.getElementById('nav');
   let me = null;
-  let config = { genres: [], maxGenres: 3 };
+  let config = { genres: [], maxGenres: 3, adminEnabled: false };
 
   // All user content goes through textContent, never innerHTML.
   function h(tag, attrs, ...kids) {
@@ -42,6 +42,7 @@
     $nav.replaceChildren(...(me ? [
       link('/new', '+ Write'),
       link('/u/' + encodeURIComponent(me.username), me.username),
+      me.admin ? h('span', { class: 'badge' }, 'ADMIN') : null,
       link('/settings', 'Settings'),
       h('button', { class: 'link', onclick: async () => { await api('POST', '/api/logout', {}); me = null; go('/'); } }, 'Log out'),
     ] : [link('/login', 'Log in'), link('/register', 'Join')]));
@@ -124,7 +125,7 @@
   async function postPage(id) {
     const { post: p } = await api('GET', '/api/posts/' + id);
     const actions = h('div', { class: 'actions' }, likeButton(p),
-      p.mine ? [link('/edit/' + p.id, 'Edit'),
+      p.canEdit ? [link('/edit/' + p.id, 'Edit'),
         h('button', { class: 'danger', onclick: async () => {
           if (!confirm('Delete this piece for good?')) return;
           await api('DELETE', '/api/posts/' + p.id); go('/');
@@ -139,7 +140,7 @@
   async function editor(id) {
     if (!me) return go('/login');
     const p = id ? (await api('GET', '/api/posts/' + id)).post : { title: '', body: '', genres: [] };
-    if (id && !p.mine) return go('/post/' + id);
+    if (id && !p.canEdit) return go('/post/' + id);
     const err = h('div', { class: 'error' });
     const title = h('input', { maxlength: 150, required: true, value: p.title });
     const body = h('textarea', { required: true, value: p.body });
@@ -177,7 +178,12 @@
       h('div', { class: 'card' }, h('h2', {}, user.username),
         h('div', { class: 'meta' }, `Joined ${when(user.joined)} · ${user.posts} piece${user.posts === 1 ? '' : 's'}`),
         user.bio ? h('p', { class: 'body' }, user.bio) : null,
-        me && me.username.toLowerCase() === user.username.toLowerCase() ? link('/settings', 'Edit profile') : null),
+        me && me.username.toLowerCase() === user.username.toLowerCase() ? link('/settings', 'Edit profile') : null,
+        me && me.admin && me.username.toLowerCase() !== user.username.toLowerCase()
+          ? h('button', { class: 'danger', onclick: async () => {
+            if (!confirm(`Delete ${user.username} and ALL their writing? This cannot be undone.`)) return;
+            await api('DELETE', '/api/admin/users/' + encodeURIComponent(user.username)); go('/');
+          } }, 'Delete this account') : null),
       holder);
     const { posts } = await api('GET', '/api/posts?' + params);
     holder.replaceChildren(...(posts.length ? posts.map(postCard) : [h('p', { class: 'empty' }, 'No writing yet.')]));
@@ -193,6 +199,17 @@
     const next = h('input', { type: 'password', required: true, autocomplete: 'new-password' });
     const ok = (el, msg) => { el.textContent = msg; el.style.color = 'green'; };
     const bad = (el, msg) => { el.textContent = msg; el.style.color = ''; };
+    const adminErr = h('div', { class: 'error' });
+    const code = h('input', { type: 'password', required: true, autocomplete: 'off' });
+    const adminCard = !config.adminEnabled ? null : me.admin
+      ? h('div', { class: 'card' }, h('h2', {}, 'Admin mode is on'),
+        h('p', { class: 'meta' }, 'You can edit or delete any post, comment or account.'),
+        h('button', { onclick: async () => { await api('POST', '/api/admin/lock', {}); ({ user: me } = await api('GET', '/api/me')); render(); } }, 'Turn off'))
+      : h('form', { class: 'card', onsubmit: async (e) => {
+        e.preventDefault();
+        try { await api('POST', '/api/admin/unlock', { code: code.value }); ({ user: me } = await api('GET', '/api/me')); render(); }
+        catch (ex) { adminErr.textContent = ex.message; }
+      } }, h('h2', {}, 'Admin'), h('label', {}, 'Admin code', code), adminErr, h('button', { type: 'submit' }, 'Unlock admin mode'));
     $app.replaceChildren(
       h('form', { class: 'card', onsubmit: async (e) => {
         e.preventDefault();
@@ -202,7 +219,8 @@
         e.preventDefault();
         try { await api('POST', '/api/me/password', { current: cur.value, next: next.value }); cur.value = next.value = ''; ok(pwErr, 'Password changed.'); }
         catch (ex) { bad(pwErr, ex.message); }
-      } }, h('h2', {}, 'Change password'), h('label', {}, 'Current password', cur), h('label', {}, 'New password (8+ characters)', next), pwErr, h('button', { type: 'submit' }, 'Change password')));
+      } }, h('h2', {}, 'Change password'), h('label', {}, 'Current password', cur), h('label', {}, 'New password (8+ characters)', next), pwErr, h('button', { type: 'submit' }, 'Change password')),
+      adminCard);
   }
 
   function authForm(mode) {

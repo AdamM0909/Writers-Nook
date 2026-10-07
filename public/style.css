@@ -53,3 +53,4 @@ section h3 { font-family:system-ui, sans-serif; }
 .meta button.link { font-size:.85rem; }
 .card form, form.card { gap:10px; }
 nav button.link { font-size:inherit; font-family:inherit; }
+.badge { background:#b3372f; color:#fff; border-radius:4px; padding:0 6px; font-size:.7rem; font-weight:700; }

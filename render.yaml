@@ -10,6 +10,8 @@ services:
     envVars:
       - key: SESSION_SECRET
         generateValue: true
+      - key: ADMIN_CODE
+        sync: false   # you'll be asked for this when you set up the Blueprint
     disk:
       name: nook-data
       mountPath: /data
