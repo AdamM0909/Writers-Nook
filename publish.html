@@ -6,12 +6,15 @@
 <title>Publish · Writer's Nook</title>
 <meta name="robots" content="noindex">
 <script>
-try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset.theme = t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
+try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset.theme = t && t !== "auto" ? t : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0c09'/%3E%3Cpath d='M9 8h8a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5z' fill='none' stroke='%23c9a24b' stroke-width='2'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Writer's Nook">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -28,30 +31,59 @@ try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset
   <p class="lead">Anything you add here appears on the shelf for everyone with the link. Only you can add books.</p>
 
   <div class="panel">
-    <b>1. Name your files</b>
+    <b>1. Describe your book</b>
     <label for="p-title">Title</label>
     <input type="text" id="p-title" placeholder="My Novel" autocomplete="off">
     <label for="p-author">Author (optional)</label>
     <input type="text" id="p-author" placeholder="Your name" autocomplete="off">
+    <label for="p-section">Section (optional): the shelf it sits on, like Poems or Philosophy</label>
+    <input type="text" id="p-section" placeholder="Poems" autocomplete="off" list="dl-sections">
+    <datalist id="dl-sections"></datalist>
+    <div class="chips" id="c-sections"></div>
+    <label for="p-genres">Genres (optional, separate with commas)</label>
+    <input type="text" id="p-genres" placeholder="Poetry, Dark" autocomplete="off" list="dl-genres">
+    <datalist id="dl-genres"></datalist>
+    <div class="chips" id="c-genres"></div>
+    <div class="row2">
+      <div><label for="p-series">Part of a series? (optional)</label><input type="text" id="p-series" placeholder="Series name" autocomplete="off" list="dl-series"><datalist id="dl-series"></datalist><div class="chips" id="c-series"></div></div>
+      <div><label for="p-no">Book number</label><input type="text" id="p-no" inputmode="numeric" placeholder="1" autocomplete="off"></div>
+    </div>
+    <label for="p-desc">Description (optional)</label>
+    <textarea id="p-desc" rows="3" placeholder="A line or two about the book"></textarea>
+    <label for="p-type">File type</label>
+    <select id="p-type"><option value="pdf">PDF</option><option value="epub">EPUB</option><option value="md">Markdown (.md)</option><option value="txt">Plain text (.txt)</option></select>
     <div class="result">
-      Book file: <code id="p-book"></code><br>
-      Cover image (optional, same name): <code id="p-cover"></code>
+      Name your book file:<br><code id="p-book"></code><br>
+      Cover image (optional): same name, but without the <code>{ }</code>, <code>[ ]</code> and <code>( )</code> parts:<br><code id="p-cover"></code>
+      <div id="p-meta" hidden>
+        <p>For the description, add this line to the file <code>books/meta.json</code> (the page below tells you how):</p>
+        <pre class="code-block" id="p-meta-text"></pre>
+        <button class="btn ghost" id="p-copy" type="button">Copy that line</button>
+      </div>
     </div>
   </div>
 
   <div class="panel">
-    <b>2. Upload them to GitHub</b>
+    <b>2. Upload to GitHub</b>
     <ol>
       <li>Tap the button below and sign in to GitHub. Only the repository owner can upload, so nobody else can add books.</li>
-      <li>Drop in the book (<code>.pdf</code>, <code>.txt</code> or <code>.md</code>) and its cover image, named as shown above.</li>
+      <li>Drop in the book (<code>.pdf</code>, <code>.epub</code>, <code>.txt</code> or <code>.md</code>) and its cover image, named exactly as shown above.</li>
       <li>Press <b>Commit changes</b> and leave it on the <code>main</code> branch.</li>
     </ol>
     <div class="cta"><a class="btn primary" id="p-go" href="https://github.com/AdamM0909/Writers-Nook/upload/main/books" target="_blank" rel="noopener">Open the upload page</a></div>
+    <div id="p-metahelp" hidden>
+      <p>To add the description: <a id="p-metalink" href="#" target="_blank" rel="noopener">open <code>books/meta.json</code></a>, and put the line you copied inside the curly brackets (add a comma after the line above it). Then press <b>Commit changes</b>.</p>
+    </div>
   </div>
 
   <div class="panel">
     <b>3. Wait about a minute</b>
     <p style="margin:6px 0 0">The site rebuilds itself after every upload. Refresh the library and your book is on the shelf.</p>
+  </div>
+
+  <div class="panel">
+    <b>How the tags work</b>
+    <p style="margin:6px 0 0">A file called <code>Night Verses - Adam {Poems} [Poetry, Dark] (Night Cycle, Book 2).pdf</code> shows up as <i>Night Verses</i> by Adam, on the <i>Poems</i> shelf, tagged <i>Poetry</i> and <i>Dark</i>, as book 2 of <i>Night Cycle</i>. Books named like <i>Self-Appreciation 1</i>, <i>Self-Appreciation 2</i> are grouped into a series automatically. Tags are all optional.</p>
   </div>
 
   <p class="foot-note">To remove or replace a book, open the <a href="https://github.com/AdamM0909/Writers-Nook/tree/main/books" target="_blank" rel="noopener">books folder</a> on GitHub and delete the file.<br>
@@ -60,16 +92,58 @@ try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset
 
 <script>
 const $ = (id) => document.getElementById(id);
+const clean = (s) => s.replace(/[\\/:*?"<>|#%\[\](){}]+/g, "").replace(/\s+/g, " ").trim();
+let metaExists = false;
+
 function update() {
-  const clean = (s) => s.replace(/[\\/:*?"<>|#%]+/g, "").replace(/\s+/g, " ").trim();
   const title = clean($("p-title").value) || "My Novel", author = clean($("p-author").value);
-  const stem = author ? `${title} - ${author}` : title;
-  $("p-book").textContent = stem + ".pdf";
-  $("p-cover").textContent = stem + ".jpg";
+  const section = clean($("p-section").value), series = clean($("p-series").value);
+  const genres = $("p-genres").value.split(/[;,]/).map(clean).filter(Boolean);
+  const no = ($("p-no").value.match(/\d+(\.\d+)?/) || ["1"])[0];
+  const ext = $("p-type").value;
+  const plain = author ? `${title} - ${author}` : title;
+  let stem = plain;
+  if (section) stem += ` {${section}}`;
+  if (genres.length) stem += ` [${genres.join(", ")}]`;
+  if (series) stem += ` (${series}, Book ${no})`;
+  $("p-book").textContent = `${stem}.${ext}`;
+  $("p-cover").textContent = `${plain}.jpg`;
+  const desc = $("p-desc").value.trim().replace(/\s+/g, " ");
+  $("p-meta").hidden = $("p-metahelp").hidden = !desc;
+  if (desc) $("p-meta-text").textContent = `  ${JSON.stringify(`${stem}.${ext}`)}: { "description": ${JSON.stringify(desc)} },`;
 }
-$("p-title").addEventListener("input", update);
-$("p-author").addEventListener("input", update);
+for (const id of ["p-title", "p-author", "p-section", "p-genres", "p-series", "p-no", "p-desc"]) $(id).addEventListener("input", update);
+$("p-type").addEventListener("change", update);
+$("p-copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("p-meta-text").textContent.trim()); $("p-copy").textContent = "Copied"; } catch { $("p-copy").textContent = "Select the line and copy it"; }
+  setTimeout(() => ($("p-copy").textContent = "Copy that line"), 2000);
+});
 update();
+
+/* suggest the sections, genres and series the shelf already has */
+const fill = (list, chips, input, items, multi) => {
+  for (const v of items) $(list).append(Object.assign(document.createElement("option"), { value: v }));
+  for (const v of items.slice(0, 12)) {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "chip", textContent: v });
+    b.addEventListener("click", () => {
+      const el = $(input);
+      if (multi) { const cur = el.value.split(/[;,]/).map((x) => x.trim()).filter(Boolean); if (!cur.some((x) => x.toLowerCase() === v.toLowerCase())) cur.push(v); el.value = cur.join(", "); } else el.value = v;
+      update();
+    });
+    $(chips).append(b);
+  }
+};
+fetch("books/library.json").then((r) => r.json()).then((raw) => {
+  const books = Array.isArray(raw) ? raw : raw.books || [];
+  const uniq = (a) => [...new Set(a.filter(Boolean))];
+  fill("dl-sections", "c-sections", "p-section", uniq([...(raw.sections || []), ...books.map((b) => b.section)]), false);
+  fill("dl-genres", "c-genres", "p-genres", uniq(books.flatMap((b) => b.genres || [])), true);
+  fill("dl-series", "c-series", "p-series", uniq(books.map((b) => b.series)), false);
+}).catch(() => {});
+fetch("books/meta.json", { method: "HEAD" }).then((r) => { metaExists = r.ok; }).catch(() => {}).finally(() => {
+  $("p-metalink").href = metaExists ? "https://github.com/AdamM0909/Writers-Nook/edit/main/books/meta.json" : "https://github.com/AdamM0909/Writers-Nook/new/main/books?filename=meta.json";
+  $("p-metalink").innerHTML = metaExists ? "open <code>books/meta.json</code>" : "create <code>books/meta.json</code> (it doesn't exist yet; start it with <code>{</code> and end it with <code>}</code>)";
+});
 </script>
 </body>
 </html>

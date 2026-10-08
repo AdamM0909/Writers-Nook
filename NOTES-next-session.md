@@ -1,41 +1,15 @@
-# Writers-Nook: notes for next session
+# Writer's Nook: notes for the next session
 
-## Start of next session
-1. Ask Operator how the live Pages site looks on phone after PR #5. Fix any bug first.
-2. Fresh branch from latest main. Ask before pushing. Draft PRs only.
+## Done
+- Bookmarks and contents (PR 7), then the big library upgrade (this branch): offline app and installing, sections / genres / series / statuses / shelves, grid and list, search by genre, New badge, detail sheet, EPUB, highlights and notes, search in a book, read aloud, quote cards, dictionary (opt-in), reading settings and themes (Auto, Sepia), focus mode, tap zones, time left, share links, sleep timer, reading stats, backup and restore, generated covers, publish page that builds the full file name, accessibility pass (axe clean).
 
-## Queue (in order)
-1. Bookmarks + contents list (# headings in text books, PDF outline)
-2. Offline reading, service worker, home-screen app
-3. NEW: Genre tabs and sections in the library
-   - Open question: how a book gets its genre. Options: books/meta.json "genre" field,
-     subfolders (books/Fantasy/...), or a tag in the file name. Private (IndexedDB) books
-     need a way to pick a genre too.
-4. Later: search in a book, export/import private books, shelf tags/collections
+## Known gaps (honest list)
+- **Cover images are huge** (13 PNGs, about 38 MB, 1600x2560). They slow the shelf on a phone. Shrinking them to about 600 px JPEGs would change nothing visible. Not touched: they are the owner's files.
+- PDFs: no highlights (a PDF page is a picture): use bookmarks with notes. No yellow highlight of search hits on the page. Quote cards need selectable text, so text books and EPUBs only.
+- EPUB: text only; pictures inside EPUBs are left out. DRM-protected files won't open.
+- No sync between devices (no server, no accounts): use Back up and restore.
+- Read aloud depends on the voices the device has.
+- Not tested: real iPhone Safari, real Android Chrome install prompt, real speech voices.
 
-## Suggestions (25)
-1. Reading progress bar and "% read" on each cover
-2. Highlights and notes, saved per book
-3. Search inside a book
-4. Export/import of private books and reading data (backup)
-5. Collections / shelf tags (user-made, beyond genre)
-6. "Finished" and "Want to read" statuses with filter tabs
-7. Reading time left estimate per book/chapter
-8. Font choice (serif, sans, dyslexia-friendly) plus line spacing and margins
-9. Tap zones and swipe gestures on phones; keyboard shortcuts on desktop
-10. Dictionary / word lookup on long-press or selection
-11. Text-to-speech read-aloud with speed control
-12. Auto dark mode following the system, plus a sepia theme
-13. Reading streaks and simple stats (pages, minutes per day)
-14. Library search bar (title, author, genre)
-15. Grid / list view toggle and cover size slider
-16. Series support: group books and order them (Book 1, 2, 3)
-17. EPUB support alongside PDF/txt/md
-18. Auto-generated covers for books with none (title/author on black and gold)
-19. Book detail page: description, genre, length, added date
-20. "New" badge for recently published books
-21. Share link that opens a book at a given page/chapter
-22. Quote capture and share as a styled image card
-23. Focus mode: hide all UI, optional reading timer / sleep timer
-24. Install prompt and update notice for the offline app
-25. Accessibility pass: screen-reader labels, focus outlines, reduced-motion (skip page-turn animation)
+## Ideas not built
+- Collections that visitors can follow (needs a server), comments, PDF text-layer highlights, image support in EPUB, per-book reading goals.
