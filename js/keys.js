@@ -16,6 +16,7 @@ addEventListener("keydown", (e) => {
   if (k === "?") return showShortcuts();
   if (!isOpen()) { if (k === "/") { e.preventDefault(); $("search").focus(); } return; }
   if (panelOpen()) return;
+  if (k === " " && e.target.closest?.("button, a, input, select, summary, [role=button], [role=tab]")) return;   // Space presses a focused control
   const kind = R.current.kind;
   if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); goTo(R.pos + 1); }
   else if (k === "ArrowLeft" || k === "PageUp") goTo(R.pos - 1);

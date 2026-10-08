@@ -1,7 +1,7 @@
 /* The reader: two-page spreads for PDFs, flowing columns for text books, page turns, saved place.
    Other modules (contents, bookmarks, search, settings, read-aloud…) plug in through R.hooks. */
 import { $, pref, clamp, motion, toast, fmtMinutes } from "./dom.js";
-import { getBook, saveSoon } from "./store.js";
+import { getBook, saveSoon, saveProgress, flushSaves } from "./store.js";
 import { bookBytes, openPdf, pdfOutline, findChapters, wordsPerPage } from "./pdf.js";
 import { renderMarkdown, renderPlain, wrapRange, clearMarks } from "./text.js";
 import { isPoetry } from "./organize.js";
@@ -12,7 +12,7 @@ export const R = {
   current: null, pdfDoc: null, pdfTask: null,
   pos: 0, count: 1, single: false,
   blocks: [], blockSpread: [], blockEnd: [], toc: [], root: null, words: 0,
-  focus: false,
+  focus: false, ready: false,          // ready: the book is open and laid out at least once
   hooks: { open: [], close: [], layout: [], preMeasure: [], pos: [], finished: [] },
 };
 const fire = (name, ...a) => R.hooks[name].forEach((f) => { try { f(...a); } catch (e) { console.error(e); } });
@@ -50,6 +50,7 @@ export async function openBook(id, params = {}) {
   if (!b) { location.hash = ""; return; }
   closeBook();
   R.current = b;
+  R.ready = false;
   R.toc = b.kind === "pdf" ? (b.autoToc?.length && b.autoTocV === TOC_VERSION ? b.autoToc : null) : [];
   $("view-library").hidden = true;
   $("view-reader").hidden = false;
@@ -89,6 +90,7 @@ export async function openBook(id, params = {}) {
   if (b.anchor && params.progress == null && !params.page && params.block == null) await goTo(posOfAnchor(b.anchor), false, false);
   if (params.page && b.kind === "pdf") await goTo(pageToPos(+params.page), true, false);
   else if (params.block != null && b.kind !== "pdf") await goTo(blockPos(+params.block, +params.off || 0), true, false);
+  R.ready = R.current === b;
   $("r-loading").hidden = true;
 }
 async function textOf(b) {
@@ -123,10 +125,11 @@ async function loadPdfContents(b, doc) {
   if (R.pdfDoc === doc) { fire("layout"); updateFooter(); }
 }
 export function closeBook() {
+  flushSaves();
   renderToken++;
   flipping?.();
   fire("close");
-  R.pdfTask?.destroy(); R.pdfTask = R.pdfDoc = null; R.current = null; R.root = null;
+  R.pdfTask?.destroy(); R.pdfTask = R.pdfDoc = null; R.current = null; R.root = null; R.ready = false;
   R.blocks = []; R.blockSpread = []; R.blockEnd = []; R.toc = []; R.words = 0;
   document.body.classList.remove("reading");
   document.title = "Writer's Nook";
@@ -146,7 +149,7 @@ export function applyTextStyle() {
 /* ---------- layout ---------- */
 export async function layout(progress) {
   const b = R.current;
-  if (!b) return;
+  if (!b || (b.kind === "pdf" ? !R.pdfDoc : !R.root)) return;      // closed, or still opening
   const { w, h } = stageSize();
   R.single = innerWidth <= 700;
   book.classList.toggle("single", R.single);
@@ -244,7 +247,7 @@ export function posOfAnchor(a) {
    Rapid changes are folded into one go, and the place is remembered from before the first change. */
 let reflowRun = null, reflowAgain = false;
 export function reflow() {
-  if (!R.current) return Promise.resolve();
+  if (!R.current || !R.ready) return Promise.resolve();
   if (reflowRun) { reflowAgain = true; return reflowRun; }
   const anchor = R.current.anchor || anchorHere();     // the place from your last page turn, so repeated changes never drift
   reflowRun = (async () => {
@@ -341,6 +344,12 @@ export async function goTo(p, save = true, animate = true) {
   $("r-slider").value = R.pos;
   updateFooter();
   fire("pos", old);
+  if (save) {                       // remember the place now, not after the page-turn animation: leaving mid-turn must not lose it
+    b.progress = progressNow();
+    b.anchor = anchorHere();
+    if (b.progress >= 0.98 && !b.finishedAt) { b.finishedAt = Date.now(); fire("finished", b); saveSoon(b); }
+    else saveProgress(b);
+  }
   if (b.kind === "pdf") {
     const nums = pdfPagesAt(R.pos), total = R.pdfDoc.numPages;
     const cvs = await Promise.all(nums.map((n) => renderCanvas(n, token)));
@@ -364,12 +373,6 @@ export async function goTo(p, save = true, animate = true) {
       move(); out.cancel();
       flow.animate({ opacity: [0, 1], transform: [`translateX(${R.pos > old ? 18 : -18}px)`, "none"] }, { duration: 260, easing: "ease-out" });
     } else move();
-  }
-  if (save && token === renderToken) {
-    b.progress = progressNow();
-    b.anchor = anchorHere();
-    if (b.progress >= 0.98 && !b.finishedAt) { b.finishedAt = Date.now(); fire("finished", b); }
-    saveSoon(b);
   }
 }
 
@@ -440,11 +443,14 @@ $("stage").addEventListener("touchend", (e) => {
   if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) goTo(R.pos + (dx < 0 ? 1 : -1));
 });
 
+/* A phone's on-screen keyboard resizes the page: don't re-lay the book out while you're typing, only once you're done. */
+const typing = () => document.activeElement?.matches?.("input, textarea, select");
 function onResize() {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { if (isOpen()) reflow(); }, 200);
+  resizeTimer = setTimeout(() => { if (R.ready && isOpen() && !typing()) reflow(); }, 200);
 }
 addEventListener("resize", onResize);
+addEventListener("focusout", () => setTimeout(() => { if (!typing()) onResize(); }, 50));
 document.addEventListener("fullscreenchange", onResize);
 
 /* highlights are re-applied by the notes module on "preMeasure"; exposed so it can clear and redraw */

@@ -62,9 +62,8 @@ export function openBackup(afterRestore) {
     if (!f) return;
     try {
       const r = await importBackup(f);
-      toast(`Restored ${r.books} ${r.books === 1 ? "book" : "books"} and your settings.`);
-      s.close();
-      afterRestore?.();
+      toast(`Restored ${r.books} ${r.books === 1 ? "book" : "books"} and your settings. Reloading…`);
+      setTimeout(() => location.reload(), 900);     // start fresh so nothing stale is left in memory (and can't overwrite what was restored)
     } catch (e) { toast(e.message || "Couldn't restore that backup."); }
   });
   const s = sheet({

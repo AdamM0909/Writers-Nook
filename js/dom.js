@@ -5,6 +5,7 @@ export const $ = (id) => document.getElementById(id);
 export function h(tag, props, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {
+    if (k.startsWith("aria-") && typeof v === "boolean") { el.setAttribute(k, String(v)); continue; }   // aria-pressed="true", not ""
     if (v == null || v === false) continue;
     if (k === "class") el.className = v;
     else if (k === "text") el.textContent = v;

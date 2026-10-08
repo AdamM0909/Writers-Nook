@@ -1,7 +1,7 @@
 /* Writer's Nook: the entry point. Each part of the app lives in js/. */
-import { $ } from "./js/dom.js";
+import { $, toast } from "./js/dom.js";
 import { applyTheme, toggleTheme } from "./js/prefs.js";
-import { loadHosted } from "./js/store.js";
+import { loadHosted, storage } from "./js/store.js";
 import { renderLibrary } from "./js/library.js";
 import { R, openBook, closeBook } from "./js/reader.js";
 import "./js/marks.js";
@@ -14,6 +14,12 @@ import { registerSW, canInstall, installApp } from "./js/pwa.js";
 import * as stats from "./js/stats.js";
 
 applyTheme();
+let warned = 0;
+storage.onError = () => {
+  if (Date.now() - warned < 30000) return;
+  warned = Date.now();
+  toast("This browser's storage is full, so your place and notes may not be saved. Back up in Settings, then remove books you don't need.");
+};
 $("theme-lib").onclick = toggleTheme;
 $("lib-settings").onclick = () => openLibrarySettings(renderLibrary);
 $("install-btn").onclick = installApp;

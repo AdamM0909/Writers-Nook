@@ -18,7 +18,15 @@ import { fileToMeta, coverKey, detectSeries, isBookFile, isCoverFile } from "../
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const dir = join(root, "books");
-const meta = existsSync(join(dir, "meta.json")) ? JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) : {};
+// books/meta.json is edited by hand, so a stray trailing comma is forgiven, and a real mistake is reported without stopping the deploy.
+function readMeta() {
+  if (!existsSync(join(dir, "meta.json"))) return {};
+  const text = readFileSync(join(dir, "meta.json"), "utf8");
+  for (const t of [text, text.replace(/,(\s*[}\]])/g, "$1")]) { try { return JSON.parse(t); } catch { /* try the forgiving version */ } }
+  console.warn("WARNING: books/meta.json is not valid JSON, so it was ignored. Check commas and quotes.");
+  return {};
+}
+const meta = readMeta();
 
 /* every file under books/, as paths relative to it ("Poems/Night Verses.pdf") */
 function walk(rel = "") {

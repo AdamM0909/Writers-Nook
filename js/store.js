@@ -38,6 +38,7 @@ export const library = { sections: [], offline: false };
 
 /* What we remember per published book. Everything else comes from library.json. */
 const PERSIST = ["progress", "anchor", "opened", "pages", "bookmarks", "highlights", "status", "statusAt", "shelves", "words", "wpp", "autoToc", "autoTocV", "finishedAt"];
+export const storage = { onError: null };      // called when the browser refuses to save (storage full)
 export const readMeta = () => { try { return JSON.parse(localStorage.getItem("wn-meta")) || {}; } catch { return {}; } };
 export function saveMeta(b) {
   try {
@@ -49,7 +50,7 @@ export function saveMeta(b) {
     }
     m[b.id] = keep;
     localStorage.setItem("wn-meta", JSON.stringify(m));
-  } catch { /* storage full or blocked: progress just won't persist */ }
+  } catch { storage.onError?.(); }                 // storage full or blocked
 }
 
 const enc = (path) => "books/" + path.split("/").map(encodeURIComponent).join("/");
@@ -85,4 +86,16 @@ export async function loadHosted() {
 export const allBooks = async () => [...hosted.values(), ...(await idbAll()).sort((a, b) => b.added - a.added)];
 export const getBook = async (id) => hosted.get(id) || (await tx("readonly", (s) => s.get(id)));
 export const putBook = (b) => (b.hosted ? saveMeta(b) : idbPut(b));
-export const saveSoon = (b) => Promise.resolve(putBook(b)).catch(() => {});
+export const saveSoon = (b) => Promise.resolve(putBook(b)).catch(() => storage.onError?.());
+
+/* Turning pages saves your place often. Those saves are batched, and written out when you stop, leave, or close the tab. */
+const pending = new Map();
+let pendingTimer;
+export function saveProgress(b) { pending.set(b.id, b); clearTimeout(pendingTimer); pendingTimer = setTimeout(flushSaves, 600); }
+export function flushSaves() {
+  clearTimeout(pendingTimer);
+  for (const b of pending.values()) saveSoon(b);
+  pending.clear();
+}
+addEventListener("pagehide", flushSaves);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSaves(); });

@@ -78,6 +78,7 @@ export function render() {
     el.tabIndex = tab === t ? 0 : -1;
   }
   $("panel-list").setAttribute("aria-labelledby", "tab-" + tab);
+  if (tab === "search" && $("panel-list").contains($("panel-q"))) { $("saved-count").textContent = savedItems().length ? `(${savedItems().length})` : ""; return; }   // keep the box you're typing in
   if (tab === "toc") renderToc();
   else if (tab === "saved") renderSaved();
   else renderSearch();
@@ -95,6 +96,7 @@ export function openPanel(which) {
   if (tab === "search") $("panel-q")?.focus(); else $("tab-" + tab).focus();
 }
 export function closePanel(restore = true) {
+  if ($("panel").contains(document.activeElement)) document.activeElement.blur();   // a hidden search box must not keep eating keys
   $("panel").hidden = $("panel-back").hidden = true;
   cancelSearch(); searchToken++;
   if (restore) returnFocus?.focus?.();

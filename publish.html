@@ -6,7 +6,7 @@
 <title>Publish · Writer's Nook</title>
 <meta name="robots" content="noindex">
 <script>
-try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset.theme = t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
+try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset.theme = t && t !== "auto" ? t : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0c09'/%3E%3Cpath d='M9 8h8a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5z' fill='none' stroke='%23c9a24b' stroke-width='2'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">

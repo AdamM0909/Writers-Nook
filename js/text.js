@@ -25,7 +25,7 @@ const newRoot = (keepBreaks) => {
    keepBreaks (poetry): every line break in a paragraph is kept. */
 export function renderMarkdown(src, { keepBreaks = false } = {}) {
   const root = newRoot(keepBreaks);
-  let para = [], list = null, quote = null;
+  let para = [], list = null, quote = null, quoteEl = null;
   const join = keepBreaks ? "\n" : " ";
   const flush = () => {
     if (para.length) { const p = document.createElement("p"); inline(p, para.join(join)); root.append(p); para = []; }
@@ -43,11 +43,9 @@ export function renderMarkdown(src, { keepBreaks = false } = {}) {
       flush();
       const hr = document.createElement("div"); hr.className = "scene-break"; hr.textContent = "❦"; root.append(hr);
     } else if ((m = /^>\s?(.*)$/.exec(line))) {
-      if (!quote) { flush(); quote = []; }
+      if (!quote) { flush(); quote = []; quoteEl = document.createElement("blockquote"); root.append(quoteEl); }
       quote.push(m[1]);
-      let bq = root.lastElementChild;
-      if (bq?.tagName !== "BLOCKQUOTE") { bq = document.createElement("blockquote"); root.append(bq); }
-      bq.replaceChildren(); inline(bq, quote.join(join));
+      quoteEl.replaceChildren(); inline(quoteEl, quote.join(join));
     } else if ((m = /^[-*+]\s+(.*)$/.exec(line))) {
       if (!list) { flush(); list = document.createElement("ul"); root.append(list); }
       const li = document.createElement("li"); inline(li, m[1]); list.append(li);

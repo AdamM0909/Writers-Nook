@@ -54,10 +54,11 @@ export function removeSaved(m) {
 }
 
 /* ---------- highlights ---------- */
+const leadOf = (m) => (m.g ? R.current.highlights.find((x) => x.g === m.g) || m : m);   // the first piece holds the note
 function paint(hl) {
   const el = R.root?.children[hl.block];            // R.blocks only exists after layout; the tree is there from the start
   if (!el) return;
-  wrapRange(el, hl.start, hl.end, "hl" + (hl.note ? " has-note" : ""), { id: hl.id });
+  wrapRange(el, hl.start, hl.end, "hl" + (leadOf(hl).note ? " has-note" : ""), { id: hl.id });
 }
 function unpaint(id) {
   for (const mk of document.querySelectorAll(`mark.hl[data-id="${CSS.escape(id)}"]`)) {
@@ -91,8 +92,9 @@ function removeHighlight(m) {
 export function setNote(m, note) {
   const b = R.current;
   note = note.trim();
+  m = leadOf(m);
   if (note) m.note = note; else delete m.note;
-  if (m.start != null) for (const mk of document.querySelectorAll(`mark.hl[data-id="${CSS.escape(m.id)}"]`)) mk.classList.toggle("has-note", !!note);
+  if (m.start != null) for (const x of m.g ? b.highlights.filter((y) => y.g === m.g) : [m]) for (const mk of document.querySelectorAll(`mark.hl[data-id="${CSS.escape(x.id)}"]`)) mk.classList.toggle("has-note", !!note);
   saveSoon(b);
   changed();
 }
@@ -121,7 +123,7 @@ $("text-flow").addEventListener("click", (e) => {
   const mk = e.target.closest?.("mark.hl");
   if (!mk || !getSelection().isCollapsed) return;
   const m = R.current?.highlights?.find((x) => x.id === mk.dataset.id);
-  if (m) hooks.openNote?.(m);
+  if (m) hooks.openNote?.(leadOf(m));
 });
 
 /* ---------- plumbing ---------- */
