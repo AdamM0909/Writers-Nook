@@ -4,6 +4,7 @@ import { R, reflow, toggleNight, toggleFullscreen, toggleFocus, isOpen } from ".
 import { textPrefs, setTextPref, themeChoice, setTheme, motionChoice, setMotion } from "./prefs.js";
 import { makeBookmark } from "./marks.js";
 import * as tts from "./tts.js";
+import * as natural from "./natural.js";
 import { isSaved, saveOffline, forgetOffline } from "./pwa.js";
 
 /* a row of choices: seg([["a", "Label"], …], current, pick) */
@@ -40,14 +41,56 @@ export function openAppearance() {
     const sel = h("select", { class: "text-in", "aria-label": "Read-aloud voice" });
     const fillVoices = () => {
       const vs = tts.listVoices();
-      sel.replaceChildren(h("option", { value: "" }, vs.length ? "Automatic (an English voice)" : "No voices found on this device"));
-      for (const v of vs) sel.append(h("option", { value: v.voiceURI }, `${v.name} (${v.lang})`));
-      sel.value = vs.some((v) => v.voiceURI === tts.savedVoice()) ? tts.savedVoice() : "";
+      sel.replaceChildren();
+      if (naturalState.ready) sel.append(h("option", { value: tts.NATURAL }, "Natural voice (Kathleen, works offline)"));
+      if (tts.deviceSupported()) {
+        sel.append(h("option", { value: tts.DEVICE }, vs.length ? "Automatic device voice (English)" : "No device voices found"));
+        for (const v of vs) sel.append(h("option", { value: v.voiceURI }, tts.labelFor(v)));
+      }
+      const saved = tts.savedVoice();
+      sel.value = naturalState.ready && (saved === tts.NATURAL || !saved) ? tts.NATURAL : vs.some((v) => v.voiceURI === saved) ? saved : tts.DEVICE;
     };
-    fillVoices();
-    speechSynthesis.addEventListener?.("voiceschanged", fillVoices);       // phones load their voices a moment late
+    const naturalBox = h("div", { class: "natural-box" });
+    const naturalState = { ready: false };
+    const paintNatural = () => {
+      naturalBox.replaceChildren();
+      if (!natural.available()) return;
+      if (naturalState.ready) {
+        naturalBox.append(
+          h("p", { class: "panel-note", text: "The natural voice is saved on this device and works with no internet." }),
+          h("button", { class: "btn ghost", type: "button", onclick: async () => {
+            await natural.remove(); tts.markNatural(false); naturalState.ready = false;
+            if (tts.savedVoice() === tts.NATURAL) tts.setVoice(tts.DEVICE);
+            toast("Natural voice removed."); fillVoices(); paintNatural();
+          } }, "Remove the natural voice"));
+        return;
+      }
+      const note = h("p", { class: "panel-note", text: `A smooth, warm, feminine voice that runs on your device. It downloads once (about ${Math.round(natural.DOWNLOAD_BYTES / 1e6)} MB, best on Wi-Fi) and then works with no internet.` });
+      const bar = h("progress", { max: "1", value: "0", hidden: true, "aria-label": "Download progress" });
+      const btn = h("button", { class: "btn", type: "button" }, "Download the natural voice");
+      btn.onclick = async () => {
+        btn.disabled = true; bar.hidden = false; btn.textContent = "Downloading…";
+        try {
+          await natural.download((f) => { bar.value = f; btn.textContent = `Downloading… ${Math.round(f * 100)}%`; });
+          tts.markNatural(true); naturalState.ready = true; tts.setVoice(tts.NATURAL);
+          toast("Natural voice ready. Tap Hear a sample.");
+          fillVoices(); paintNatural();
+        } catch (e) {
+          btn.disabled = false; bar.hidden = true; btn.textContent = "Try the download again";
+          toast(navigator.onLine ? "The download didn't finish. " + (e.message || "") : "You're offline. Connect to the internet to download the voice.");
+        }
+      };
+      naturalBox.append(note, btn, bar);
+    };
     sel.addEventListener("change", () => tts.setVoice(sel.value));
-    body.append(field("Read-aloud voice", sel));
+    natural.isInstalled().then((ok) => { naturalState.ready = ok; fillVoices(); paintNatural(); });
+    fillVoices(); paintNatural();
+    if (tts.deviceSupported()) speechSynthesis.addEventListener?.("voiceschanged", fillVoices);       // phones load their voices a moment late
+    body.append(field("Read-aloud voice", h("div", {},
+      sel,
+      h("div", { class: "row-inline" }, h("button", { class: "btn ghost", type: "button", onclick: () => tts.preview() }, "Hear a sample")),
+      naturalBox,
+      tts.deviceSupported() ? h("p", { class: "panel-note voice-help", text: "Device voices marked ★ are the ones most likely to sound smooth. You can also download an Enhanced or Premium voice in your phone's settings, and it will appear here. iPhone: Settings, Accessibility, Spoken Content, Voices. Android: Settings, System, Languages, Text-to-speech output." }) : null)));
   }
   body.append(
     field("Page animation", seg([["auto", "Automatic"], ["reduce", "Calm (none)"]], motionChoice(), setMotion, "Page animation")),
@@ -102,7 +145,7 @@ export async function openMore() {
   if (!b) return;
   const list = h("div", { class: "menu" });
   const item = (label, sub, fn) => { const btn = h("button", { class: "menu-item", type: "button", onclick: () => { s.close(); fn(); } }, h("span", { text: label }), sub && h("small", { text: sub })); list.append(btn); return btn; };
-  item(tts.isSpeaking() ? "Stop reading aloud" : "Read aloud", tts.supported() ? "Uses your device's voice. Turns the pages as it goes." : "Not available in this browser.", tts.toggle);
+  item(tts.isSpeaking() ? "Stop reading aloud" : "Read aloud", tts.supported() ? "Reads in a natural or device voice, and turns the pages as it goes." : "Not available in this browser.", tts.toggle);
   item("Focus mode", "Hides the bars. Tap the middle of the page to bring them back.", toggleFocus);
   item("Fullscreen", null, toggleFullscreen);
   item("Share a link to this place", b.hosted ? "Copies a link that opens this book here." : "Only published books can be shared.", shareHere);
