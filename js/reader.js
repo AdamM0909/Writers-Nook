@@ -17,7 +17,7 @@ export const R = {
 };
 const fire = (name, ...a) => R.hooks[name].forEach((f) => { try { f(...a); } catch (e) { console.error(e); } });
 
-let renderToken = 0, pageW = 0, pageH = 0, flipping = null, resizeTimer, night = pref.get("night", "0") === "1";
+let renderToken = 0, pageW = 0, pageH = 0, flipping = null, resizeTimer, laidOut = { w: 0, h: 0, single: null }, night = pref.get("night", "0") === "1";
 const book = $("book");
 const GAP = 88;
 const TOC_VERSION = 2;                    // bump when findChapters changes, so saved chapter lists are redone
@@ -152,6 +152,7 @@ export async function layout(progress) {
   if (!b || (b.kind === "pdf" ? !R.pdfDoc : !R.root)) return;      // closed, or still opening
   const { w, h } = stageSize();
   R.single = innerWidth <= 700;
+  laidOut = { w, h, single: R.single };
   book.classList.toggle("single", R.single);
   const isPdf = b.kind === "pdf";
   $("spread-pdf").hidden = !isPdf;
@@ -343,7 +344,7 @@ export async function goTo(p, save = true, animate = true) {
   $("r-next").disabled = R.pos >= R.count - 1;
   $("r-slider").value = R.pos;
   updateFooter();
-  fire("pos", old);
+  fire("pos", old, save);           // save is true only for real moves by the reader; layout and reopening pass false
   if (save) {                       // remember the place now, not after the page-turn animation: leaving mid-turn must not lose it
     b.progress = progressNow();
     b.anchor = anchorHere();
@@ -447,7 +448,12 @@ $("stage").addEventListener("touchend", (e) => {
 const typing = () => document.activeElement?.matches?.("input, textarea, select");
 function onResize() {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { if (R.ready && isOpen() && !typing()) reflow(); }, 200);
+  resizeTimer = setTimeout(() => {
+    if (!R.ready || !isOpen() || typing()) return;
+    const { w, h } = stageSize();           // closing a menu or a dialog moves focus: only re-lay out if the space really changed
+    if (Math.abs(w - laidOut.w) < 2 && Math.abs(h - laidOut.h) < 2 && (innerWidth <= 700) === laidOut.single) return;
+    reflow();
+  }, 200);
 }
 addEventListener("resize", onResize);
 addEventListener("focusout", () => setTimeout(() => { if (!typing()) onResize(); }, 50));
