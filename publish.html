@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publish · Writer's Nook</title>
+<meta name="robots" content="noindex">
+<script>
+try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset.theme = t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0c09'/%3E%3Cpath d='M9 8h8a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5z' fill='none' stroke='%23c9a24b' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <a href="./" class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 7h9a5 5 0 0 1 5 5v14H12a5 5 0 0 1-5-5z" fill="none" stroke="#c9a24b" stroke-width="2"/><path d="M25 7c-3 2-3 6 0 8" fill="none" style="stroke:var(--leaf)" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>Writer's Nook</span>
+  </a>
+  <div class="actions"><a class="btn ghost" href="./">← Library</a></div>
+</header>
+
+<main class="publish">
+  <h1>Publish a book</h1>
+  <p class="lead">Anything you add here appears on the shelf for everyone with the link. Only you can add books.</p>
+
+  <div class="panel">
+    <b>1. Name your files</b>
+    <label for="p-title">Title</label>
+    <input type="text" id="p-title" placeholder="My Novel" autocomplete="off">
+    <label for="p-author">Author (optional)</label>
+    <input type="text" id="p-author" placeholder="Your name" autocomplete="off">
+    <div class="result">
+      Book file: <code id="p-book"></code><br>
+      Cover image (optional, same name): <code id="p-cover"></code>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>2. Upload them to GitHub</b>
+    <ol>
+      <li>Tap the button below and sign in to GitHub. Only the repository owner can upload, so nobody else can add books.</li>
+      <li>Drop in the book (<code>.pdf</code>, <code>.txt</code> or <code>.md</code>) and its cover image, named as shown above.</li>
+      <li>Press <b>Commit changes</b> and leave it on the <code>main</code> branch.</li>
+    </ol>
+    <div class="cta"><a class="btn primary" id="p-go" href="https://github.com/AdamM0909/Writers-Nook/upload/main/books" target="_blank" rel="noopener">Open the upload page</a></div>
+  </div>
+
+  <div class="panel">
+    <b>3. Wait about a minute</b>
+    <p style="margin:6px 0 0">The site rebuilds itself after every upload. Refresh the library and your book is on the shelf.</p>
+  </div>
+
+  <p class="foot-note">To remove or replace a book, open the <a href="https://github.com/AdamM0909/Writers-Nook/tree/main/books" target="_blank" rel="noopener">books folder</a> on GitHub and delete the file.<br>
+  Published books are public to anyone with the link.</p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function update() {
+  const clean = (s) => s.replace(/[\\/:*?"<>|#%]+/g, "").replace(/\s+/g, " ").trim();
+  const title = clean($("p-title").value) || "My Novel", author = clean($("p-author").value);
+  const stem = author ? `${title} - ${author}` : title;
+  $("p-book").textContent = stem + ".pdf";
+  $("p-cover").textContent = stem + ".jpg";
+}
+$("p-title").addEventListener("input", update);
+$("p-author").addEventListener("input", update);
+update();
+</script>
+</body>
+</html>

@@ -36,7 +36,11 @@ Titles come from the file names. To set a title or author, add `books/meta.json`
 { "My Novel.pdf": { "title": "My Novel", "author": "Your Name" } }
 ```
 
-Visitors can also use **Add a book** to open a file just for themselves; those stay only in that browser.
+Easiest way: open **`publish.html`** on your site (the *Author? Publish a book* link at the bottom of the library). It builds the file names for you and opens GitHub's upload page for the `books/` folder. Only people with write access to the repo can upload, so you are the only one who can publish.
+
+Name a file `My Novel - Your Name.pdf` and the title and author are filled in automatically (no `meta.json` needed).
+
+Visitors can use **Open a file** to read something just for themselves; those stay only in that browser and are never published.
 
 > If the repo is public, so are the books in it. For private reading, keep the repo private (Pages on private repos needs a paid plan) or only use **Add a book**.
 

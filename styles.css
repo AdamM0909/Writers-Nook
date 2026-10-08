@@ -262,3 +262,20 @@ h1, h2 { font-family: var(--serif); font-weight: 600; color: var(--accent); marg
 #r-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--gold); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--gold); cursor: pointer; }
 #r-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--gold); border: 2px solid var(--surface); cursor: pointer; }
 #r-slider::-moz-range-track { background: var(--line); height: 4px; border-radius: 2px; }
+
+/* Publish page and library footer note */
+.foot-note { text-align: center; color: var(--muted); font-size: 15px; margin: 36px 0 0; }
+.foot-note a, .publish a:not(.btn) { color: var(--accent); }
+.publish { max-width: 640px; margin: 0 auto; padding: 10px 24px 60px; }
+.publish h1 { font-size: 40px; text-align: center; }
+.publish > p.lead { text-align: center; color: var(--muted); font-style: italic; margin: 6px 0 26px; }
+.publish ol { padding-left: 1.3em; }
+.publish li { margin: 0 0 14px; }
+.publish .panel { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 18px; margin: 18px 0; }
+.publish label { display: block; font-size: 15px; color: var(--muted); margin: 10px 0 4px; }
+.publish input[type=text], .publish select { width: 100%; font: 17px var(--body); padding: 10px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.publish code { background: var(--gold-soft); padding: 2px 8px; border-radius: 6px; word-break: break-all; }
+.publish .result { margin-top: 14px; }
+.publish .cta { text-align: center; margin: 22px 0; }
+.publish .result code { display: inline-block; margin: 4px 0 10px; word-break: normal; overflow-wrap: anywhere; }
