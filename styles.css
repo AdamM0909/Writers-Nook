@@ -537,3 +537,13 @@ kbd { font: 600 14px var(--body); background: var(--bg); border: 1px solid var(-
 .publish .row2 { display: grid; grid-template-columns: 1fr 110px; gap: 12px; }
 .publish .chips { margin: 6px 0 0; }
 .publish .code-block { background: var(--gold-soft); border-radius: 10px; padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.4 ui-monospace, Menlo, monospace; margin: 8px 0; }
+
+/* sideways-scrolling rows hint that there is more */
+.tabs-row.fade-r, .chips-row.fade-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent); }
+.tabs-row.fade-l, .chips-row.fade-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 34px), transparent); }
+.tabs-row.fade-l.fade-r, .chips-row.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 34px, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(to right, transparent, #000 34px, #000 calc(100% - 34px), transparent); }
+@media (max-width: 520px) {
+  /* five tabs (All, three sections, Series) fit a phone without scrolling */
+  .tabs-row { justify-content: space-between; gap: 0; }
+  .tab { font-size: 17px; padding: 9px 7px 7px; }
+}
