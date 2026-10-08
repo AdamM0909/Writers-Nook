@@ -42,7 +42,7 @@ async function loadHosted() {
     for (const e of await r.json()) {
       const id = "h:" + e.file;
       hosted.set(id, {
-        id, hosted: true, added: 0, kind: /\.pdf$/i.test(e.file) ? "pdf" : "text",
+        id, hosted: true, added: 0, kind: /\.pdf$/i.test(e.file) ? "pdf" : "text", md: /\.md$/i.test(e.file),
         url: "books/" + e.file.split("/").map(encodeURIComponent).join("/"),
         title: e.title || cleanName(e.file.split("/").pop()), author: e.author || "", ...meta[id],
         ...(e.cover && { cover: "books/" + encodeURIComponent(e.cover) }),
@@ -84,6 +84,53 @@ function toggleTheme() {
 $("theme-lib").onclick = $("theme-read").onclick = toggleTheme;
 let night = pref.get("night", "0") === "1";
 let fontSize = +pref.get("fs", 19);
+
+/* ---------- markdown (small and safe: builds DOM nodes, never HTML) ---------- */
+function inline(parent, text) {
+  const re = /(\*\*|__)(.+?)\1|(\*|_)(?=\S)(.+?)(?<=\S)\3/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    parent.append(text.slice(last, m.index));
+    const el = document.createElement(m[1] ? "strong" : "em");
+    inline(el, m[1] ? m[2] : m[4]);
+    parent.append(el);
+    last = re.lastIndex;
+  }
+  parent.append(text.slice(last));
+}
+function renderMarkdown(src) {
+  const root = document.createElement("div");
+  root.className = "md";
+  let para = [], list = null, quote = null;
+  const flush = () => {
+    if (para.length) { const p = document.createElement("p"); inline(p, para.join(" ")); root.append(p); para = []; }
+    list = quote = null;
+  };
+  for (const raw of src.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trim();
+    let m;
+    if (!line) flush();
+    else if ((m = /^(#{1,3})\s+(.*)$/.exec(line))) {
+      flush();
+      const h = document.createElement("h" + (m[1].length + 1));
+      inline(h, m[2]); root.append(h);
+    } else if (/^([-*_])(\s*\1){2,}$/.test(line)) {
+      flush();
+      const hr = document.createElement("div"); hr.className = "scene-break"; hr.textContent = "\u2766"; root.append(hr);
+    } else if ((m = /^>\s?(.*)$/.exec(line))) {
+      if (!quote) { flush(); quote = []; }
+      quote.push(m[1]);
+      let bq = root.lastElementChild;
+      if (bq?.tagName !== "BLOCKQUOTE") { bq = document.createElement("blockquote"); root.append(bq); }
+      bq.replaceChildren(); inline(bq, quote.join(" "));
+    } else if ((m = /^[-*+]\s+(.*)$/.exec(line))) {
+      if (!list) { flush(); list = document.createElement("ul"); root.append(list); }
+      const li = document.createElement("li"); inline(li, m[1]); list.append(li);
+    } else { if (list) flush(); para.push(line); }
+  }
+  flush();
+  return root;
+}
 
 /* ---------- library ---------- */
 async function renderLibrary() {
@@ -198,7 +245,7 @@ async function addFiles(files) {
         const buf = await f.arrayBuffer();
         Object.assign(book, { kind: "pdf", data: new Blob([buf], { type: "application/pdf" }) }, await pdfCover({ data: buf }));
       } else {
-        Object.assign(book, { kind: "text", text: await f.text() });
+        Object.assign(book, { kind: "text", md: /\.md$/i.test(f.name), text: await f.text() });
       }
       await idbPut(book);
       added++;
@@ -322,18 +369,22 @@ async function layout(progress) {
     flow.style.columnGap = gap + "px";
     flow.style.fontSize = fontSize + "px";
     flow.replaceChildren();
-    const t = document.createElement("h2");
-    t.textContent = current.title;
-    t.style.cssText = "text-align:center;margin:1.2em 0 .2em;font-size:2em;break-inside:avoid";
-    flow.append(t);
-    if (current.author) {
-      const a = document.createElement("div");
-      a.textContent = "by " + current.author;
-      a.style.cssText = "text-align:center;font-style:italic;color:var(--muted);margin-bottom:1.6em";
-      flow.append(a);
+    // A Markdown book that opens with its own "# Title" supplies the title page itself.
+    if (!(current.md && /^\s*#\s+\S/.test(current.text))) {
+      const t = document.createElement("h2");
+      t.textContent = current.title;
+      t.style.cssText = "text-align:center;margin:1.2em 0 .2em;font-size:2em;break-inside:avoid";
+      flow.append(t);
+      if (current.author) {
+        const a = document.createElement("div");
+        a.textContent = "by " + current.author;
+        a.style.cssText = "text-align:center;font-style:italic;color:var(--muted);margin-bottom:1.6em";
+        flow.append(a);
+      }
     }
-    const body = document.createElement("div");
-    body.textContent = current.text;
+    let body;
+    if (current.md) body = renderMarkdown(current.text);
+    else { body = document.createElement("div"); body.textContent = current.text; }
     flow.append(body);
     await document.fonts?.ready;
     const colW = (flow.clientWidth - gap * (cols - 1)) / cols;
