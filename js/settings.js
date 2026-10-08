@@ -36,6 +36,19 @@ export function openAppearance() {
       field("Margins", seg([["narrow", "Narrow"], ["normal", "Normal"], ["wide", "Wide"]], textPrefs.margin, (v) => { setTextPref("margin", v); reflowText(); }, "Margins")),
       field("Alignment", seg([["1", "Justified"], ["0", "Left"]], textPrefs.justify ? "1" : "0", (v) => { setTextPref("justify", v === "1"); reflowText(); }, "Alignment")));
   }
+  if (tts.supported()) {
+    const sel = h("select", { class: "text-in", "aria-label": "Read-aloud voice" });
+    const fillVoices = () => {
+      const vs = tts.listVoices();
+      sel.replaceChildren(h("option", { value: "" }, vs.length ? "Automatic (an English voice)" : "No voices found on this device"));
+      for (const v of vs) sel.append(h("option", { value: v.voiceURI }, `${v.name} (${v.lang})`));
+      sel.value = vs.some((v) => v.voiceURI === tts.savedVoice()) ? tts.savedVoice() : "";
+    };
+    fillVoices();
+    speechSynthesis.addEventListener?.("voiceschanged", fillVoices);       // phones load their voices a moment late
+    sel.addEventListener("change", () => tts.setVoice(sel.value));
+    body.append(field("Read-aloud voice", sel));
+  }
   body.append(
     field("Page animation", seg([["auto", "Automatic"], ["reduce", "Calm (none)"]], motionChoice(), setMotion, "Page animation")),
     field("Sleep timer", seg([[0, "Off"], [15, "15 min"], [30, "30 min"], [45, "45 min"], [60, "60 min"]], sleepMin, setSleep, "Sleep timer")));
@@ -89,7 +102,7 @@ export async function openMore() {
   if (!b) return;
   const list = h("div", { class: "menu" });
   const item = (label, sub, fn) => { const btn = h("button", { class: "menu-item", type: "button", onclick: () => { s.close(); fn(); } }, h("span", { text: label }), sub && h("small", { text: sub })); list.append(btn); return btn; };
-  if (tts.supported()) item(tts.isSpeaking() ? "Stop reading aloud" : "Read aloud", "Uses your device's voice. Turns the pages as it goes.", tts.toggle);
+  item(tts.isSpeaking() ? "Stop reading aloud" : "Read aloud", tts.supported() ? "Uses your device's voice. Turns the pages as it goes." : "Not available in this browser.", tts.toggle);
   item("Focus mode", "Hides the bars. Tap the middle of the page to bring them back.", toggleFocus);
   item("Fullscreen", null, toggleFullscreen);
   item("Share a link to this place", b.hosted ? "Copies a link that opens this book here." : "Only published books can be shared.", shareHere);
