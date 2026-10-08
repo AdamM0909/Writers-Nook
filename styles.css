@@ -279,3 +279,12 @@ h1, h2 { font-family: var(--serif); font-weight: 600; color: var(--accent); marg
 .publish .result { margin-top: 14px; }
 .publish .cta { text-align: center; margin: 22px 0; }
 .publish .result code { display: inline-block; margin: 4px 0 10px; word-break: normal; overflow-wrap: anywhere; }
+
+/* Markdown books */
+.text-flow .md { white-space: normal; }
+.md p { margin: 0 0 .9em; }
+.md h2, .md h3, .md h4 { text-align: left; break-after: avoid; margin: 1.2em 0 .5em; line-height: 1.2; }
+.md h2 { font-size: 1.7em; } .md h3 { font-size: 1.35em; } .md h4 { font-size: 1.15em; }
+.md blockquote { margin: 0 0 .9em; padding-left: 1em; border-left: 2px solid var(--gold); font-style: italic; color: var(--muted); }
+.md ul { margin: 0 0 .9em; padding-left: 1.3em; }
+.md .scene-break { text-align: center; color: var(--gold); margin: 1em 0; }
