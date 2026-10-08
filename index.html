@@ -97,6 +97,8 @@ try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset
     <div class="r-title"><span id="r-title"></span><small id="r-author"></small></div>
     <div class="r-tools">
       <span class="size-ctl" id="r-size" hidden><button id="r-smaller" aria-label="Smaller text" title="Smaller text">A−</button><button id="r-bigger" aria-label="Larger text" title="Larger text">A+</button></span>
+      <button class="btn ghost" id="r-toc" title="Contents and bookmarks (C)" aria-haspopup="dialog">Contents</button>
+      <button class="btn ghost icon-btn mark-btn" id="r-mark" aria-pressed="false" aria-label="Bookmark this page" title="Bookmark this page (B)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg></button>
       <button class="btn ghost toggle" id="r-night" aria-pressed="false" title="Invert page colours (N)" hidden>Night pages</button>
       <button class="btn ghost icon-btn" id="theme-read" aria-label="Toggle light and dark mode" title="Light / dark (T)"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g><path class="moon" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
       <button class="btn ghost" id="r-full" title="Fullscreen">Fullscreen</button>
@@ -117,6 +119,7 @@ try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset
       <div class="spread text-spread" id="spread-text" hidden>
         <div class="text-flow" id="text-flow"></div>
       </div>
+      <div class="ribbon" id="ribbon" hidden aria-hidden="true"></div>
       <div class="spine"></div>
       <div class="flip-layer" id="flip-layer"></div>
     </div>
@@ -126,6 +129,17 @@ try { var t = localStorage.getItem("wn-theme"); document.documentElement.dataset
     <span id="r-pos"></span>
     <input type="range" id="r-slider" min="0" value="0" aria-label="Go to page">
   </div>
+  <div id="panel-back" class="panel-back" hidden></div>
+  <aside id="panel" class="panel" role="dialog" aria-modal="true" aria-label="Contents and bookmarks" hidden>
+    <div class="panel-head">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-toc" aria-selected="true" aria-controls="panel-list">Contents</button>
+        <button role="tab" id="tab-marks" aria-selected="false" aria-controls="panel-list" tabindex="-1">Bookmarks <span id="mark-count"></span></button>
+      </div>
+      <button id="panel-close" class="btn ghost icon-btn" aria-label="Close">×</button>
+    </div>
+    <div id="panel-list" class="panel-list" role="tabpanel"></div>
+  </aside>
   <div id="r-loading" class="loading" hidden>Opening book…</div>
 </section>
 
