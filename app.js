@@ -369,15 +369,18 @@ async function layout(progress) {
     flow.style.columnGap = gap + "px";
     flow.style.fontSize = fontSize + "px";
     flow.replaceChildren();
-    const t = document.createElement("h2");
-    t.textContent = current.title;
-    t.style.cssText = "text-align:center;margin:1.2em 0 .2em;font-size:2em;break-inside:avoid";
-    flow.append(t);
-    if (current.author) {
-      const a = document.createElement("div");
-      a.textContent = "by " + current.author;
-      a.style.cssText = "text-align:center;font-style:italic;color:var(--muted);margin-bottom:1.6em";
-      flow.append(a);
+    // A Markdown book that opens with its own "# Title" supplies the title page itself.
+    if (!(current.md && /^\s*#\s+\S/.test(current.text))) {
+      const t = document.createElement("h2");
+      t.textContent = current.title;
+      t.style.cssText = "text-align:center;margin:1.2em 0 .2em;font-size:2em;break-inside:avoid";
+      flow.append(t);
+      if (current.author) {
+        const a = document.createElement("div");
+        a.textContent = "by " + current.author;
+        a.style.cssText = "text-align:center;font-style:italic;color:var(--muted);margin-bottom:1.6em";
+        flow.append(a);
+      }
     }
     let body;
     if (current.md) body = renderMarkdown(current.text);
