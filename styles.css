@@ -547,3 +547,7 @@ kbd { font: 600 14px var(--body); background: var(--bg); border: 1px solid var(-
   .tabs-row { justify-content: space-between; gap: 0; }
   .tab { font-size: 17px; padding: 9px 7px 7px; }
 }
+
+/* natural voice download in the reading settings */
+.natural-box { margin-top: .6rem; display: grid; gap: .5rem; justify-items: start; }
+.natural-box progress { width: 100%; height: .5rem; accent-color: var(--accent, currentColor); }
