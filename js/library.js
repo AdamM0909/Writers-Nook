@@ -77,6 +77,15 @@ function groupBooks(books, sections, shelves) {
   return [{ title: "", books: clustered(books) }];
 }
 
+/* A row that scrolls sideways fades at the edge where more is hidden, so nothing looks cut off by accident. */
+function fadeEdges(row) {
+  const update = () => {
+    row.classList.toggle("fade-l", row.scrollLeft > 4);
+    row.classList.toggle("fade-r", row.scrollLeft + row.clientWidth < row.scrollWidth - 4);
+  };
+  if (!row._fades) { row._fades = true; row.addEventListener("scroll", update, { passive: true }); addEventListener("resize", update); }
+  requestAnimationFrame(update);
+}
 function renderTabs(tabs, sections, shelves, series) {
   const bar = $("tabs");
   bar.hidden = tabs.length < 2;
@@ -85,6 +94,7 @@ function renderTabs(tabs, sections, shelves, series) {
     text: t === "all" ? "All" : t === "series" ? "Series" : t === "shelves" ? "My shelves" : t,
     onclick: () => { ui.tab = t; ui.series = ui.shelf = ""; renderLibrary(); },
   })));
+  fadeEdges(bar);
   const sub = $("subtabs");
   const chips = ui.tab === "shelves" ? shelves.map((s) => [s, s]) : [];
   sub.hidden = !chips.length;
@@ -92,6 +102,7 @@ function renderTabs(tabs, sections, shelves, series) {
 }
 function renderFilters(genres) {
   const st = $("status-chips");
+  fadeEdges(st); fadeEdges($("genre-chips"));
   st.replaceChildren(...STATUS.map(([v, t]) => chip(t, ui.status === v, () => { ui.status = v; pref.set("status", v); renderLibrary(); })));
   const gc = $("genre-chips");
   gc.hidden = !genres.length;
