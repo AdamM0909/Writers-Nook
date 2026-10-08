@@ -41,13 +41,16 @@ export function openAppearance() {
     const fillVoices = () => {
       const vs = tts.listVoices();
       sel.replaceChildren(h("option", { value: "" }, vs.length ? "Automatic (an English voice)" : "No voices found on this device"));
-      for (const v of vs) sel.append(h("option", { value: v.voiceURI }, `${v.name} (${v.lang})`));
+      for (const v of vs) sel.append(h("option", { value: v.voiceURI }, tts.labelFor(v)));
       sel.value = vs.some((v) => v.voiceURI === tts.savedVoice()) ? tts.savedVoice() : "";
     };
     fillVoices();
     speechSynthesis.addEventListener?.("voiceschanged", fillVoices);       // phones load their voices a moment late
     sel.addEventListener("change", () => tts.setVoice(sel.value));
-    body.append(field("Read-aloud voice", sel));
+    body.append(field("Read-aloud voice", h("div", {},
+      sel,
+      h("div", { class: "row-inline" }, h("button", { class: "btn ghost", type: "button", onclick: () => tts.preview() }, "Hear a sample")),
+      h("p", { class: "panel-note voice-help", text: "★ marks the voices most likely to sound smooth and warm. For a more natural voice, download an Enhanced or Premium one in your phone's settings, and it will appear here. iPhone: Settings, Accessibility, Spoken Content, Voices. Android: Settings, System, Languages, Text-to-speech output." }))));
   }
   body.append(
     field("Page animation", seg([["auto", "Automatic"], ["reduce", "Calm (none)"]], motionChoice(), setMotion, "Page animation")),

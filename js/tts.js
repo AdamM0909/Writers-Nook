@@ -3,26 +3,29 @@
 import { $, pref, toast } from "./dom.js";
 import { R, goTo, pageToPos, pagesShown } from "./reader.js";
 import { pageText } from "./pdf.js";
+import { bestVoice, rankVoices, isEnglish, voiceLabel } from "./voices.js";
 
 export const supported = () => "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
 let playing = false, paused = false, token = 0, auto = false;
-let rate = +pref.get("rate", 1);
+let rate = +pref.get("rate", 0.9);          // a little slower than the default: calmer, easier to follow
 export const isSpeaking = () => playing;
 const START_TIMEOUT = 4000;      // a voice that hasn't begun after this long is not going to
 
 /* ---------- voices ---------- */
 const voices = () => { try { return speechSynthesis.getVoices() || []; } catch { return []; } };
 export function listVoices() {
-  const en = (v) => (/^en/i.test(v.lang) ? 0 : 1);
-  return [...voices()].sort((a, b) => en(a) - en(b) || a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+  const all = voices();
+  return [...rankVoices(all.filter(isEnglish)), ...all.filter((v) => !isEnglish(v)).sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name))];
 }
+export const labelFor = (v) => voiceLabel(v, voices());
 export const savedVoice = () => pref.get("voice", "");
 export const setVoice = (uri) => pref.set("voice", uri);
-/* the chosen voice, or an English one: asking only for lang "en" fails on some phones */
+/* the chosen voice, or the smoothest English one the device has: asking only for lang "en" fails on some phones */
 function chooseVoice() {
   const all = voices(), saved = savedVoice();
-  return all.find((v) => v.voiceURI === saved) || all.find((v) => v.default && /^en/i.test(v.lang)) || all.find((v) => /^en/i.test(v.lang)) || null;
+  return all.find((v) => v.voiceURI === saved) || bestVoice(all) || null;
 }
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));     // a breath between paragraphs and pages
 
 /* ---------- speaking ---------- */
 function chunks(text) {                       // short pieces, so voices don't stall on long paragraphs
@@ -84,6 +87,7 @@ export async function start() {
         const r = await say(c);
         if (r !== "ok") { if (r !== "cancelled") failed(r); return; }
       }
+      if (live()) await pause(300);
       n++;
     }
   } else {
@@ -100,6 +104,7 @@ export async function start() {
         if (r !== "ok") { el.classList.remove("speaking"); if (r !== "cancelled") failed(r); return; }
       }
       el.classList.remove("speaking");
+      if (live()) await pause(/^H[2-4]$/.test(el.tagName) ? 600 : 350);       // a longer breath after a heading
     }
     R.blocks.forEach((el) => el.classList.remove("speaking"));
   }
@@ -117,6 +122,14 @@ export function pauseResume() {
   paused = !paused;
   if (paused) speechSynthesis.pause(); else speechSynthesis.resume();
   show();
+}
+/* Hear the chosen voice on a short sample (called from a tap, so phones allow it). */
+export async function preview() {
+  if (!supported()) return toast("This browser can't read aloud.");
+  if (playing) stop();
+  try { speechSynthesis.cancel(); } catch { /* nothing playing */ }
+  const r = await say("Hello. Let's read something lovely together.");
+  if (r !== "ok" && r !== "cancelled") toast(explain(r.error));
 }
 export function setRate(r) { rate = r; pref.set("rate", String(r)); }   // takes effect from the next sentence
 
