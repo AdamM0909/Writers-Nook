@@ -30,7 +30,7 @@ const readMeta = () => { try { return JSON.parse(localStorage.getItem("wn-meta")
 function saveMeta(b) {
   try {
     const m = readMeta();
-    m[b.id] = { progress: b.progress || 0, opened: b.opened, pages: b.pages, ...(b.cover?.startsWith("data:") && { cover: b.cover }) };
+    m[b.id] = { progress: b.progress || 0, opened: b.opened, pages: b.pages, ...(b.bookmarks?.length && { bookmarks: b.bookmarks }), ...(b.cover?.startsWith("data:") && { cover: b.cover }) };
     localStorage.setItem("wn-meta", JSON.stringify(m));
   } catch { /* storage full or blocked: progress just won't persist */ }
 }
@@ -273,6 +273,7 @@ addEventListener("drop", (e) => {
 /* ---------- reader ---------- */
 let current = null, pdfDoc = null, pdfTask = null, pos = 0, count = 1, single = false, renderToken = 0;
 let pageW = 0, pageH = 0, flipping = null, resizeTimer;
+let tocItems = [], blocks = [], blockSpread = [], blockEnd = [], panelTab = "toc", panelReturn = null;
 const book = $("book");
 const GAP = 88;
 function applyNight() {
@@ -303,6 +304,7 @@ async function openBook(id) {
   if (!b) { location.hash = ""; return; }
   closeBook();
   current = b;
+  tocItems = b.kind === "pdf" ? null : [];
   show("reader");
   $("r-title").textContent = b.title;
   $("r-author").textContent = b.author;
@@ -317,6 +319,8 @@ async function openBook(id) {
     if (b.kind === "pdf") {
       pdfTask = pdfjs.getDocument(b.hosted ? { url: b.url } : { data: await b.data.arrayBuffer() });
       pdfDoc = await pdfTask.promise;
+      const doc = pdfDoc;
+      pdfToc(doc).then((t) => { if (pdfDoc === doc) { tocItems = t; refreshPanel(); } }, () => { if (pdfDoc === doc) { tocItems = []; refreshPanel(); } });
     } else if (b.hosted && b.text == null) {
       const r = await fetch(b.url);
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -337,6 +341,8 @@ function closeBook() {
   renderToken++;
   flipping?.();
   pdfTask?.destroy(); pdfTask = pdfDoc = null; current = null;
+  tocItems = []; blocks = []; blockSpread = []; blockEnd = [];
+  $("panel").hidden = $("panel-back").hidden = true;
   document.title = "Writer's Nook";
   if (document.fullscreenElement) document.exitFullscreen();
 }
@@ -389,9 +395,20 @@ async function layout(progress) {
     await document.fonts?.ready;
     const colW = (flow.clientWidth - gap * (cols - 1)) / cols;
     count = Math.max(1, Math.ceil(Math.round((flow.scrollWidth + gap) / (colW + gap)) / cols));
+    // Which spread each paragraph starts on, so bookmarks and chapters survive text size changes.
+    flow.scrollLeft = 0;
+    // offsetLeft, not getBoundingClientRect: the book-opening animation scales and tilts the page.
+    blocks = current.md ? [...body.children] : [];
+    blockSpread = blocks.map((el) => Math.max(0, Math.min(count - 1, Math.floor(Math.round((el.offsetLeft - flow.offsetLeft) / (colW + gap)) / cols))));
+    blockEnd = blockSpread.map((s, i) => Math.max(s, blockSpread[i + 1] ?? count - 1));
+    tocItems = [];
+    blocks.forEach((el, i) => {
+      if (/^H[2-4]$/.test(el.tagName) && el.textContent.trim()) tocItems.push({ label: el.textContent.trim(), depth: +el.tagName[1] - 2, spread: blockSpread[i] });
+    });
   }
   $("r-slider").max = count - 1;
   await goTo(Math.round(progress * (count - 1)), false, false);
+  refreshPanel();
 }
 
 async function renderCanvas(n, token) {
@@ -474,6 +491,7 @@ async function goTo(p, save = true, animate = true) {
   $("r-prev").disabled = pos === 0;
   $("r-next").disabled = pos >= count - 1;
   $("r-slider").value = pos;
+  updateMark();
   if (current.kind === "pdf") {
     const nums = pdfPagesAt(pos), total = pdfDoc.numPages;
     const shown = nums.filter((n) => n && n <= total);
@@ -507,6 +525,159 @@ async function goTo(p, save = true, animate = true) {
   }
 }
 
+/* ---------- bookmarks and contents ---------- */
+const pageToPos = (n) => Math.max(0, Math.min(count - 1, single ? n - 1 : Math.floor(n / 2)));
+function bmPos(m) {
+  if (m.page) return pageToPos(m.page);
+  if (m.block != null && blockSpread[m.block] != null) {
+    // a paragraph can run over several pages: m.off is how far through it the bookmark sits
+    const start = blockSpread[m.block], span = Math.max(1, blockEnd[m.block] - start + 1);
+    return Math.min(count - 1, start + Math.floor((m.off || 0) * span));
+  }
+  return Math.round((m.frac || 0) * (count - 1));
+}
+async function pdfToc(doc) {
+  const out = [];
+  const walk = async (items, depth) => {
+    for (const it of items) {
+      if (out.length >= 500) return;
+      try {
+        let dest = it.dest;
+        if (typeof dest === "string") dest = await doc.getDestination(dest);
+        if (Array.isArray(dest)) {
+          const ref = dest[0];
+          const page = (typeof ref === "object" ? await doc.getPageIndex(ref) : ref) + 1;
+          if (page >= 1 && page <= doc.numPages && it.title?.trim()) out.push({ label: it.title.trim(), depth: Math.min(depth, 2), page });
+        }
+      } catch { /* skip an entry that points nowhere */ }
+      if (it.items?.length) await walk(it.items, depth + 1);
+    }
+  };
+  const outline = await doc.getOutline();
+  if (outline) await walk(outline, 0);
+  return out;
+}
+const tocTarget = (it) => (it.page ? pageToPos(it.page) : it.spread);
+function makeBookmark() {
+  if (current.kind === "pdf") {
+    const page = pdfPagesAt(pos).find((n) => n && n <= pdfDoc.numPages);
+    return { id: uid(), page, label: "Page " + page, at: Date.now() };
+  }
+  const frac = count > 1 ? pos / (count - 1) : 0;
+  // Anchor to the first paragraph that starts on this spread, or else the one running across it.
+  const starts = blockSpread.map((s, i) => (s === pos ? i : -1)).filter((i) => i >= 0);
+  let i = starts.find((k) => blocks[k].textContent.trim().length > 2);
+  if (i === undefined) i = blockSpread.findLastIndex((s) => s <= pos);
+  const text = i >= 0 ? blocks[i].textContent.trim() : "";
+  const span = i >= 0 ? Math.max(1, blockEnd[i] - blockSpread[i] + 1) : 1;
+  return {
+    id: uid(), block: i >= 0 ? i : null, frac, at: Date.now(),
+    off: i >= 0 && pos > blockSpread[i] ? (pos - blockSpread[i] + 0.5) / span : 0,
+    label: text.length > 2 ? (text.length > 70 ? text.slice(0, 70).trimEnd() + "…" : text) : `About ${Math.round(frac * 100)}% through`,
+  };
+}
+function updateMark() {
+  const on = !!current && (current.bookmarks || []).some((m) => bmPos(m) === pos);
+  $("r-mark").setAttribute("aria-pressed", on);
+  $("r-mark").setAttribute("aria-label", on ? "Remove bookmark from this page" : "Bookmark this page");
+  $("ribbon").hidden = !on;
+}
+function toggleMark() {
+  if (!current || !$("r-loading").hidden) return;
+  const here = (current.bookmarks || []).filter((m) => bmPos(m) === pos);
+  if (here.length) { current.bookmarks = current.bookmarks.filter((m) => !here.includes(m)); toast("Bookmark removed."); }
+  else { current.bookmarks = [...(current.bookmarks || []), makeBookmark()]; toast("Bookmark added."); }
+  Promise.resolve(putBook(current)).catch(() => {});
+  refreshPanel();
+}
+function refreshPanel() {
+  if (!current) return;
+  updateMark();
+  if (!$("panel").hidden) renderPanel();
+}
+function renderPanel() {
+  const list = $("panel-list");
+  const marks = (current.bookmarks || []).slice().sort((a, b) => bmPos(a) - bmPos(b));
+  $("mark-count").textContent = marks.length ? `(${marks.length})` : "";
+  for (const t of ["toc", "marks"]) {
+    const tab = $("tab-" + t);
+    tab.setAttribute("aria-selected", panelTab === t);
+    tab.tabIndex = panelTab === t ? 0 : -1;
+  }
+  list.setAttribute("aria-labelledby", "tab-" + panelTab);
+  list.replaceChildren();
+  const note = (msg) => { const p = document.createElement("p"); p.className = "panel-note"; p.textContent = msg; list.append(p); };
+  const go = (p) => { closePanel(false); goTo(p); };
+  if (panelTab === "toc") {
+    if (tocItems === null) return note("Looking for contents…");
+    if (!tocItems.length) return note(current.kind === "pdf"
+      ? "This PDF has no built-in contents. You can still bookmark any page."
+      : "This book has no chapter headings. Start a line with # to make one, and it will appear here.");
+    const here = tocItems.reduce((a, it, i) => (tocTarget(it) <= pos ? i : a), -1);
+    tocItems.forEach((it, i) => {
+      const b = document.createElement("button");
+      b.className = "row d" + it.depth;
+      b.textContent = it.label;
+      if (i === here) b.setAttribute("aria-current", "true");
+      b.onclick = () => go(tocTarget(it));
+      list.append(b);
+    });
+  } else {
+    if (!marks.length) return note("No bookmarks yet. Press the ribbon button, or B, to mark the page you are on.");
+    for (const m of marks) {
+      const wrap = document.createElement("div");
+      wrap.className = "row-wrap";
+      const b = document.createElement("button");
+      b.className = "row";
+      const l = document.createElement("span"); l.textContent = m.label;
+      const sub = document.createElement("small");
+      sub.textContent = m.page ? `Page ${m.page}` : `Spread ${bmPos(m) + 1}`;
+      b.append(l, sub);
+      b.onclick = () => go(bmPos(m));
+      const x = document.createElement("button");
+      x.className = "x"; x.textContent = "×"; x.setAttribute("aria-label", "Remove bookmark: " + m.label);
+      x.onclick = () => {
+        current.bookmarks = current.bookmarks.filter((k) => k !== m);
+        Promise.resolve(putBook(current)).catch(() => {});
+        refreshPanel();
+      };
+      wrap.append(b, x);
+      list.append(wrap);
+    }
+  }
+  list.querySelector("[aria-current]")?.scrollIntoView({ block: "center" });
+}
+function openPanel() {
+  if (!current) return;
+  panelTab = tocItems?.length === 0 && (current.bookmarks || []).length ? "marks" : "toc";
+  panelReturn = document.activeElement;
+  $("panel").hidden = $("panel-back").hidden = false;
+  renderPanel();
+  $("tab-" + panelTab).focus();
+}
+function closePanel(restore = true) {
+  $("panel").hidden = $("panel-back").hidden = true;
+  if (restore) panelReturn?.focus?.();
+  panelReturn = null;
+}
+$("r-toc").onclick = openPanel;
+$("r-mark").onclick = toggleMark;
+$("panel-close").onclick = () => closePanel();
+$("panel-back").onclick = () => closePanel();
+for (const t of ["toc", "marks"]) $("tab-" + t).onclick = () => { panelTab = t; renderPanel(); };
+$("panel").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.stopPropagation(); closePanel(); }
+  else if (e.key === "Tab") {
+    const f = [...$("panel").querySelectorAll("button:not([tabindex='-1'])")];
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  } else if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && e.target.getAttribute("role") === "tab") {
+    panelTab = panelTab === "toc" ? "marks" : "toc"; renderPanel(); $("tab-" + panelTab).focus();
+  }
+});
+
 $("r-prev").onclick = () => goTo(pos - 1);
 $("r-next").onclick = () => goTo(pos + 1);
 $("r-slider").oninput = (e) => goTo(+e.target.value);
@@ -534,6 +705,9 @@ addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea") || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === "t") return toggleTheme();
   if ($("view-reader").hidden) return;
+  if (!$("panel").hidden) return;
+  if (e.key === "b") return toggleMark();
+  if (e.key === "c") return openPanel();
   if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); goTo(pos + 1); }
   else if (e.key === "ArrowLeft" || e.key === "PageUp") goTo(pos - 1);
   else if (e.key === "Home") goTo(0);
